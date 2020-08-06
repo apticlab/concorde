@@ -1,0 +1,30 @@
+{
+  "name": "aptic/concorde",
+  "description": "The fastest way to create complex application in Laravel",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Aptic Team",
+      "email": "concorde@aptic.io"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Aptic\\Concorde\\": "src"
+    },
+    "files": [
+      "src/helpers.php"
+    ]
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Aptic\\Concorde\\ConcordeServiceProvider"
+      ]
+    }
+  },
+  "require-dev": {
+    "orchestra/testbench": "^5.3"
+  }
+}
