@@ -8,7 +8,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 
-class CreateUsersAttributes extends Migration
+class SeedRoles extends Migration
 {
     /**
      * Run the migrations.

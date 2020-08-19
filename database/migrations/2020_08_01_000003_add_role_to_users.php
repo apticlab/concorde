@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Artisan;
 
-class CreateUsersAttributes extends Migration
+class AddRoleToUsers extends Migration
 {
     /**
      * Run the migrations.
