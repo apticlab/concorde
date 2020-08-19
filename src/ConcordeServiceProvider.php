@@ -5,6 +5,8 @@ namespace Aptic\Concorde;
 use Aptic\Concorde\Console\AddResource;
 use Aptic\Concorde\Console\InstallConcorde;
 use Aptic\Concorde\Console\RegenerateResource;
+use Aptic\Concorde\Http\ResourceRegistrar;
+use Illuminate\Routing\ResourceRegistrar as BaseResourceRegistrar;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -30,6 +32,10 @@ class ConcordeServiceProvider extends ServiceProvider {
         RegenerateResource::class,
       ]);
     }
+
+    app()->bind(BaseResourceRegistrar::class, function () {
+      return new ResourceRegistrar(app()->make(Router::class));
+    });
 
 
     Route::group(["prefix" => "api"], function () {
