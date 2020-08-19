@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Input;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Aptic\Concorde\helpers;
 use Illuminate\Support\Str;
 
 class ResourceBaseController extends Controller
