@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\Artisan;
 
 class AddRoleToUsers extends Migration
 {
@@ -20,10 +19,6 @@ class AddRoleToUsers extends Migration
           $table->string("name");
           $table->string("surname");
         });
-
-        Artisan::call("db:seed", [
-          "--class" => UsersTableSeeder::class,
-        ]);
     }
 
     /**
