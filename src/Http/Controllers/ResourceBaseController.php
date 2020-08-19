@@ -10,6 +10,43 @@ use Illuminate\Support\Facades\Input;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use SplFileObject;
+
+function getFileDelimiter($file, $checkLines = 2){
+  $file = new SplFileObject($file);
+  $delimiters = [
+    ",",
+    "\t",
+    ";",
+    "|",
+    ":"
+  ];
+
+  $results = array();
+  $i = 0;
+
+  while ($file->valid() && $i <= $checkLines) {
+    $line = $file->fgets();
+
+    foreach ($delimiters as $delimiter){
+      $regExp = '/['.$delimiter.']/';
+      $fields = preg_split($regExp, $line);
+
+      if (count($fields) > 1) {
+        if (!empty($results[$delimiter])) {
+          $results[$delimiter]++;
+        } else {
+          $results[$delimiter] = 1;
+        }
+      }
+    }
+
+    $i++;
+  }
+  $results = array_keys($results, max($results));
+
+  return $results[0];
+}
 
 class ResourceBaseController extends Controller
 {
@@ -170,6 +207,106 @@ class ResourceBaseController extends Controller
         ], 500);
       }
     }
+  }
+
+  public function massive(Request $req) {
+    $resourcesFile = $req->file("resources");
+
+    try {
+      DB::beginTransaction();
+      $savedResources = $this->doMassiveStore($resourcesFile);
+      DB::commit();
+
+      return response()->json($savedResources, 200);
+    } catch (ValidationException $e) {
+      return response()->json($e->validator, 422);
+    } catch (\Exception $e) {
+      DB::rollBack();
+
+      return response()->json([
+        "message" => $e->getMessage(),
+        "file" => $e->getFile(),
+        "line" => $e->getLine(),
+      ], 500);
+    }
+  }
+
+  private function doMassiveStore(UploadedFile $resourcesFile) {
+    $filePath = $resourcesFile->getRealPath();
+    $fileHandle = fopen($filePath, "r");
+
+    $csvDelimiter = getFileDelimiter($filePath);
+
+    Log::info("Csv delimiter: $csvDelimiter");
+
+    $rows = [];
+
+    // Get the first row as headers
+    $headers = fgetcsv($fileHandle, 0, $csvDelimiter);
+
+    // Put each csv row inside associative array
+    while (($csvRow = fgetcsv($fileHandle, 0, $csvDelimiter)) !== FALSE) {
+      $row = [];
+
+      foreach ($headers as $index => $header) {
+        $row[$header] = $csvRow[$index];
+      }
+
+      $rows[] = $row;
+    }
+
+    $resourceRows = [];
+
+    foreach ($rows as $row) {
+      foreach ($this->massiveHeaders as $index => $massiveHeader) {
+        switch ($massiveHeader['type']) {
+          case 'resource':
+            $whereOperator = $massiveHeader['operator'] ?? '=';
+
+            $relatedResource = $massiveHeader['resourceClass']
+              ::where($massiveHeader['foreignField'], $whereOperator, $row[$massiveHeader['columnName']])
+              ->first();
+
+            if ($relatedResource) {
+              $resourceRow[$massiveHeader['field']] = $relatedResource->id;
+            }
+            break;
+          case 'date':
+            if (!$row[$massiveHeader['columnName']]) {
+              continue 2;
+            }
+
+            $dateObject = Carbon::createFromFormat($massiveHeader['inFormat'], $row[$massiveHeader['columnName']]);
+            $resourceRow[$massiveHeader['field']] = $dateObject->format($massiveHeader['outFormat']);
+
+            break;
+          default:
+            $resourceRow[$massiveHeader['field']] = $row[$massiveHeader['columnName']];
+            break;
+        }
+      }
+
+      $resourceRows[] = $resourceRow;
+    }
+
+    $errors = [];
+    $savedResource = 0;
+
+    foreach ($resourceRows as $resourceRow) {
+      try {
+        $this->doStore($resourceRow);
+        $savedResource += 1;
+      } catch (ValidationException $e) {
+        Log::info($e->validator);
+        $errors[] = $e->validator;
+      }
+    }
+
+    if (count($errors) > 0) {
+      throw new ValidationException($errors);
+    }
+
+    return $savedResource;
   }
 
   private function resourceStore($resource, $model) {
