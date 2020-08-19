@@ -27,4 +27,5 @@ echo "Current version: $CURRENT_VERSION"
 echo "New version: $NEW_VERSION"
 
 git tag v$NEW_VERSION
-git push --tags
+# Push commits and tags
+git push --all
