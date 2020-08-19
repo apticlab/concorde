@@ -15,6 +15,9 @@ class BaseUser extends Authenticatable
   // no need to insert field in $fillable array for mass assignment
   protected $guarded = [];
 
+  // Use 'users' table
+  protected $table = "users";
+
   // TODO
   // Automatically remove password without putting it in hidden
   // in order not to delete this when overriding the $hidden property
