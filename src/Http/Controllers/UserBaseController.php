@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 
 class UserBaseController extends ResourceBaseController
 {
-  public $role = "";
+  public $role = null;
   public $resourceClass = BaseUser::class;
 
   public $images = [
@@ -20,7 +20,7 @@ class UserBaseController extends ResourceBaseController
 
   public function indexFilter($query, $params)
   {
-    if ($this->role == "") {
+    if (!$this->role) {
       return $query;
     }
 

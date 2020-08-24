@@ -3,6 +3,7 @@
 namespace Aptic\Concorde\Http\Controllers;
 
 use App\Models\User;
+use Aptic\Concorde\Models\BaseUser;
 use Exception;
 
 use Illuminate\Http\Request;
@@ -40,6 +41,7 @@ class LoginController extends Controller {
 
     $loginRequest = Request::create("/oauth/token", "POST", $passportData);
     $response = app()->handle($loginRequest);
+    $responseStatusCode = $response->getStatusCode();
 
     switch ($response->getStatusCode()) {
       case 500:

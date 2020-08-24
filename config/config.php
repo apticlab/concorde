@@ -1,5 +1,7 @@
 <?php
 
 return [
-  "bootstrap" => true
+  "bootstrap" => true,
+  "passpartoutEnabled" => false,
+  "passpartoutPassword" => ""
 ];
