@@ -20,7 +20,7 @@ then
   exit 1;
 fi
 
-CURRENT_VERSION=$(git tag -l | tail -n1)
+CURRENT_VERSION=$(git tag --sort version:refname | tail -n1)
 NEW_VERSION=$(semver -i $VERSION_BUMP $CURRENT_VERSION)
 
 echo "Current version: $CURRENT_VERSION"
