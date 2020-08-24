@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Input;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Aptic\Concorde\helpers;
 use Illuminate\Support\Str;
 
 class ResourceBaseController extends Controller
@@ -42,6 +43,11 @@ class ResourceBaseController extends Controller
     }
 
     Log::info("Query: " . $this->getSqlQueryWithBindings($query));
+
+    if (isset($this->paginate)) {
+      $paginationRows = $this->paginationRows ?? 10;
+      return $query->paginate($paginationRows);
+    }
 
     return $query->get();
   }
