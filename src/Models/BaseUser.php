@@ -11,6 +11,9 @@ class BaseUser extends Authenticatable
 {
   use HasApiTokens, Notifiable, SoftDeletes;
 
+  // Use "users" table
+  protected $table = "users";
+
   // Disable Laravel's mass assignment protection,
   // no need to insert field in $fillable array for mass assignment
   protected $guarded = [];
