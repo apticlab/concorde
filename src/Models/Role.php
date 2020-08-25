@@ -28,6 +28,8 @@ class Role extends Model
     static::addGlobalScope('userCanSee', function (Builder $builder) {
       $authUser = Auth::user();
 
+      Log::info($authUser);
+
       if ($authUser == null) {
         return;
       }

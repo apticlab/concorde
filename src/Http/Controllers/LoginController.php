@@ -55,7 +55,7 @@ class LoginController extends Controller {
       case 200:
         $tokens = json_decode($response->getContent());
 
-        $user = User::where($loginField, $request->username)
+        $user = BaseUser::where($loginField, $request->username)
            ->with([
              'role'
            ])
