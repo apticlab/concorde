@@ -20,6 +20,7 @@ class ResourceBaseController extends Controller
     "create" => null,
     "edit" => null,
   ];
+  public $orderBy = [];
 
   public function index(Request $req) {
     if (!$this->resourceClass) {
@@ -43,6 +44,10 @@ class ResourceBaseController extends Controller
     }
 
     Log::info("Query: " . $this->getSqlQueryWithBindings($query));
+
+    if (isset($this->orderBy) && count($this->orderBy) > 1) {
+      $query->orderBy(...$this->orderBy);
+    }
 
     if (isset($this->paginate)) {
       $paginationRows = $this->paginationRows ?? 10;

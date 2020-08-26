@@ -20,6 +20,9 @@ class BaseUser extends Authenticatable
   // no need to insert field in $fillable array for mass assignment
   protected $guarded = [];
 
+  protected $appends = [
+    "full_name"
+  ];
 
   public $with = [
     "role"
@@ -66,5 +69,9 @@ class BaseUser extends Authenticatable
 
   public function getRole() {
     return $this->role()->first()->code;
+  }
+
+  public function getFullNameAttribute() {
+    return ucfirst(strtolower($this->name)) . " " . ucfirst(strtolower($this->surname));
   }
 }
