@@ -2,7 +2,6 @@
 
 namespace Aptic\Concorde\Http\Controllers;
 
-use App\Models\User;
 use Aptic\Concorde\Models\BaseUser;
 use Exception;
 
@@ -68,6 +67,7 @@ class LoginController extends Controller {
     }
   }
 
+  /*
   public function resetPassword(Request $request) {
     $email = $request->email;
 
@@ -167,4 +167,5 @@ class LoginController extends Controller {
         500);
     }
   }
+  */
 }

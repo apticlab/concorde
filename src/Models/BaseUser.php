@@ -59,8 +59,20 @@ class BaseUser extends Authenticatable
     return Hash::check($password, $this->password);
   }
 
-  public function scopeOfType($query, $type) {
-    return $query->where("role_id", Role::where("code", $type)->first()->id);
+  public function scopeOfType($query, $types) {
+    $roleCodesArray = [];
+
+    if (gettype($types) == "string") {
+      $roleCodesArray[] = $types;
+    } else {
+      $roleCodesArray = $types;
+    }
+
+    Log::info("Types: " . json_encode($types));
+    Log::info("RoleCodeArray: ", $roleCodesArray);
+    Log::info("RoleCodeId: ", Role::whereIn("code", $roleCodesArray)->pluck("id")->toArray());
+
+    return $query->whereIn("role_id", Role::whereIn("code", $roleCodesArray)->pluck("id"));
   }
 
   public function role() {
