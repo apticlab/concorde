@@ -68,10 +68,6 @@ class BaseUser extends Authenticatable
       $roleCodesArray = $types;
     }
 
-    Log::info("Types: " . json_encode($types));
-    Log::info("RoleCodeArray: ", $roleCodesArray);
-    Log::info("RoleCodeId: ", Role::whereIn("code", $roleCodesArray)->pluck("id")->toArray());
-
     return $query->whereIn("role_id", Role::whereIn("code", $roleCodesArray)->pluck("id"));
   }
 

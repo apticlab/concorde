@@ -6,11 +6,12 @@ use Aptic\Concorde\Models\BaseUser;
 use Exception;
 
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use ReflectionException;
 
 class LoginController extends Controller {
   public function __construct() {
@@ -59,6 +60,12 @@ class LoginController extends Controller {
              'role'
            ])
            ->first();
+
+        try {
+          $user = App::call("\App\Http\Controllers\CustomLoginController@postLogin", [$user]);
+        } catch (ReflectionException $re) {
+          Log::info("\App\Http\Controllers\CustomLoginController@postLogin does not exists, skipping...");
+        }
 
         return response([
           "user" => $user,
