@@ -5,6 +5,7 @@ namespace Aptic\Concorde\Http\Controllers;
 use Aptic\Concorde\Models\BaseUser;
 use Aptic\Concorde\Models\Role;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -17,6 +18,9 @@ class UserBaseController extends ResourceBaseController
   public $images = [
     'avatar'
   ];
+
+  public function me() {
+  }
 
   public function indexFilter($query, $params)
   {

@@ -7,6 +7,7 @@ use Exception;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -18,6 +19,18 @@ class LoginController extends Controller {
     $this->client = DB::table('oauth_clients')
          ->where("password_client", 1)
          ->first();
+  }
+
+  public function me() {
+    $authUser = Auth::user();
+
+    try {
+      $authUser = App::call("\App\Http\Controllers\CustomLoginController@me", [$authUser]);
+    } catch (ReflectionException $re) {
+      // Use defaults
+    }
+
+    return response($authUser, 200);
   }
 
   public function getAuthUser(Request $request) {

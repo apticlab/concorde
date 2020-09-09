@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Input;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Aptic\Concorde\helpers;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ResourceBaseController extends Controller
@@ -189,25 +190,27 @@ class ResourceBaseController extends Controller
     $resourceData = [];
 
     foreach ($resource as $field => $value) {
-      Log::info($field);
-      Log::info(gettype($value));
+      $fieldName = "";
+      $fieldValue = null;
 
       switch (gettype($value)) {
         case 'array':
           if (isset($value['id'])) {
-            $resourceData[$field . "_id"] = $value['id'];
-          } else if (get_class($model) == 'App\Models\Checklist' || get_class($model) == 'App\Models\Survey') {
-            $resourceData[$field] = json_encode($value);
+            $fieldName = $field . "_id";
+            $fieldValue = $value['id'];
           }
-
           break;
 
         default:
-          $resourceData[$field] = $value;
+          $fieldName = $field;
+          $fieldValue = $value;
+      }
+
+      if (Schema::hasColumn($model->getTable(), $fieldName)) {
+        // Check if we are adding an attribute or a column
+        $resourceData[$fieldName] = $fieldValue;
       }
     }
-
-    Log::info($resourceData);
 
     try {
       $model->fill($resourceData);
@@ -217,10 +220,6 @@ class ResourceBaseController extends Controller
       foreach ($resource as $field => $value) {
         switch (gettype($value)) {
           case 'array':
-            if (isset($value['id'])) {
-              break;
-            }
-
             // Multi sync relationship
             if ($this != null && !isset($this->relatedResources) || $this->relatedResources == []) {
               break;
@@ -234,6 +233,10 @@ class ResourceBaseController extends Controller
               }
             }
 
+            if ($relatedResourceData == []) {
+              break;
+            }
+
             $resourceIsOwned = false;
 
             if (isset($relatedResourceData['owned'])) {
@@ -245,11 +248,54 @@ class ResourceBaseController extends Controller
 
             Log::info("Saving current related resources ids");
 
-            // Keep a copy of old related resources id to delete the no more used ones
-            $oldRelatedResourceIds = $model->{$field}->pluck("id")->toArray();
-            $currentRelatedResourcesIds = [];
+            $relatedResourceType = $relatedResourceData['type'] ?? 'many-to-many';
 
-            foreach ($value as $index => $relatedResource) {
+            if ($relatedResourceType == 'many-to-many') {
+              // Keep a copy of old related resources id to delete the no more used ones
+              $oldRelatedResourceIds = $model->{$field}->pluck("id")->toArray();
+              $currentRelatedResourcesIds = [];
+
+              foreach ($value as $index => $relatedResource) {
+                if (!isset($relatedResource['id'])) {
+                  // Create new related resource
+                  Log::info("Creating new related resource");
+                  $relatedResourceModel = new $relatedResourceData['class']();
+                } else {
+                  // Update new related resource
+                  Log::info("Updating new related resource");
+                  $relatedResourceModel = $relatedResourceData['class']::where("id", $relatedResource['id'])->first();
+                }
+
+                if ($resourceIsOwned) {
+                  $relatedResource[$this->singular . "_id"] = $model->id;
+                }
+
+                // Store related resource with this function
+                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+
+                $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+              }
+
+              if (!$resourceIsOwned) {
+                Log::info("Syncing related resource");
+                $model->{$field}->sync($currentRelatedResourcesIds);
+                break;
+              }
+
+              // Delete owned no more used related resource
+              Log::Info("Deleting no more related resources");
+              $resourcesToDeleteIds = array_diff($oldRelatedResourceIds, $currentRelatedResourcesIds);
+
+              foreach ($resourcesToDeleteIds as $resourceId) {
+                Log::info("Deleting $resourceId");
+                $relatedResourceData['class']::destroy($resourceId);
+              }
+            }
+
+            if ($relatedResourceType == 'one-to-one') {
+              $relatedResource = $value;
+
+              // Update just one related resource
               if (!isset($relatedResource['id'])) {
                 // Create new related resource
                 Log::info("Creating new related resource");
@@ -262,29 +308,15 @@ class ResourceBaseController extends Controller
 
               if ($resourceIsOwned) {
                 $relatedResource[$this->singular . "_id"] = $model->id;
+              } else {
+                $model->{$field . "_id"} = $relatedResourceModel->id;
+                $model->save();
               }
 
               // Store related resource with this function
               $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
 
-              $currentRelatedResourcesIds[] = $relatedResourceModel->id;
             }
-
-            if (!$resourceIsOwned) {
-              Log::info("Syncing related resource");
-              $model->{$field}->sync($currentRelatedResourcesIds);
-              break;
-            }
-
-            // Delete owned no more used related resource
-            Log::Info("Deleting no more related resources");
-            $resourcesToDeleteIds = array_diff($oldRelatedResourceIds, $currentRelatedResourcesIds);
-
-            foreach ($resourcesToDeleteIds as $resourceId) {
-              Log::info("Deleting $resourceId");
-              $relatedResourceData['class']::destroy($resourceId);
-            }
-
             break;
 
           default:

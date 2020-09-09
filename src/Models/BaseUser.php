@@ -20,6 +20,10 @@ class BaseUser extends Authenticatable
   // no need to insert field in $fillable array for mass assignment
   protected $guarded = [];
 
+  public $hidden = [
+    "password",
+  ];
+
   protected $appends = [
     "full_name"
   ];
