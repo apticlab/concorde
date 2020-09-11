@@ -6,7 +6,6 @@ use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Input;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Aptic\Concorde\helpers;
@@ -28,7 +27,7 @@ class ResourceBaseController extends Controller
       return null;
     }
 
-    $requestParams = Input::all();
+    $requestParams = $req->input();
 
     $query = $this->resourceClass::query();
 
@@ -44,11 +43,67 @@ class ResourceBaseController extends Controller
       $query = $this->indexFilter($query, $requestParams);
     }
 
-    Log::info("Query: " . $this->getSqlQueryWithBindings($query));
 
-    if (isset($this->orderBy) && count($this->orderBy) > 1) {
-      $query->orderBy(...$this->orderBy);
+    if (isset($this->with) && isset($this->with['index'])) {
+      $query->with($this->with['index']);
     }
+
+    if (isset($this->orderBy) && count($this->orderBy) > 0) {
+      foreach ($this->orderBy as $orderByClause) {
+        if (strpos($orderByClause[0], ".") != false) {
+          $orderByDirection = $orderByClause[1];
+          $orderByFunction = $orderByDirection == 'asc' ? "orderBy" : "orderByDesc";
+
+          $resourceClasses = $orderByClause[2];
+          $tokens = explode(".", $orderByClause[0]);
+          $fieldName = array_pop($tokens);
+
+          $tokens = array_reverse($tokens);
+
+          $tables = [];
+
+          foreach ($tokens as $tableName) {
+            $tables[] = [
+              "name" => app($resourceClasses[$tableName])->getTable(),
+              "field" => $tableName,
+            ];
+          }
+
+          $orderQuery = DB::query();
+
+          foreach ($tables as $index => $table) {
+            if ($index == 0) {
+              $orderQuery
+                ->from($table['name'], "table" . $index)
+                ->select($fieldName);
+            } else {
+              $tableAlias = "table" . $index;
+              $prevTableAlias = "table" . ($index - 1);
+              $prevTableName = $tables[$index - 1];
+
+              $orderQuery->join(
+                $table['name'] . " as $tableAlias",
+                $tableAlias . "." . $prevTableName['field'] . "_id",
+                $prevTableAlias . ".id"
+              );
+            }
+          }
+
+          $lastIndex = count($tables) - 1;
+          $lastTable = $tables[$lastIndex];
+
+          $orderQuery
+            ->whereColumn(
+              "table" . $lastIndex . ".id",
+              app($this->resourceClass)->getTable() . "." . $lastTable['field'] . "_id"
+            );
+
+          $query->{$orderByFunction}($orderQuery);
+        }
+      }
+    }
+
+    Log::info("Query: " . $this->getSqlQueryWithBindings($query));
 
     if (isset($this->paginate)) {
       $paginationRows = $this->paginationRows ?? 10;
@@ -315,7 +370,6 @@ class ResourceBaseController extends Controller
 
               // Store related resource with this function
               $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-
             }
             break;
 
