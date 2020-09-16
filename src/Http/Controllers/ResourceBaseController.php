@@ -246,6 +246,10 @@ class ResourceBaseController extends Controller
     }
   }
 
+  public function doAct($resource, $actionName, $actionData) {
+    return false;
+  }
+
   private function resourceStore($resource, $model) {
     DB::beginTransaction();
 
