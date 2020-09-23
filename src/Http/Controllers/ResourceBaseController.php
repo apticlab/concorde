@@ -344,7 +344,7 @@ class ResourceBaseController extends Controller
 
               if (!$resourceIsOwned) {
                 Log::info("Syncing related resource");
-                $model->{$field}->sync($currentRelatedResourcesIds);
+                $model->{$field}()->sync($currentRelatedResourcesIds);
                 break;
               }
 
