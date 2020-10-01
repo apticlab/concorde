@@ -288,9 +288,10 @@ class ResourceBaseController extends Controller
               // Update new related resource
               $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
             }
-
-            // Store related resource with this function
-            $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+            if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
+              // Store related resource with this function
+              $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+            }
 
             // BelongsTo the foreign key is on the "parent" model
             $model->{$field . "_id"} = $relatedResourceModel->id;
