@@ -31,6 +31,10 @@ class ResourceBaseController extends Controller
 
     $requestParams = $req->input();
 
+    foreach ($requestParams as $paramName => $paramValue) {
+      $requestParams[$paramName] = json_decode($paramValue);
+    }
+
     $query = $this->resourceClass::query();
 
     // Role base filter
