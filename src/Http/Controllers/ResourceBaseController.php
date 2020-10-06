@@ -114,7 +114,11 @@ class ResourceBaseController extends Controller
 
     Log::info("Query: " . $this->getSqlQueryWithBindings($query));
 
-    if (isset($this->paginate)) {
+    // Disable pagination by setting no_paginate filter in query
+    $paginateFromController = $this->paginate ?? false;
+    $noPaginateFromQuery = $requestParams['no_paginate'] ?? false;
+
+    if ($paginateFromController && !$noPaginateFromQuery) {
       $paginationRows = $this->paginationRows ?? 10;
       return $query->paginate($paginationRows);
     }
