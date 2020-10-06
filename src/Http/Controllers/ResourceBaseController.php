@@ -205,7 +205,13 @@ class ResourceBaseController extends Controller
   }
 
   public function show($id) {
-    return $this->resourceClass::where("id", "=", $id)->first();
+    $query = $this->resourceClass::query();
+
+    if (isset($this->with) && isset($this->with['show'])) {
+      $query->with($this->with['show']);
+    }
+
+    return $query->where("id", "=", $id)->first();
   }
 
   public function destroy($id) {
@@ -271,43 +277,20 @@ class ResourceBaseController extends Controller
       $model->fill($resourceData);
       $model->save();
 
-      foreach ($resource as $field => $value) {
-        // Check which type of relationship we have
-        try {
-          $relationType = array_reverse(explode("\\", get_class($model->{$field}())))[0];
-          $relatedResourceModelClass = $model->{$field}()->getRelated();
-        } catch (\Throwable $e) {
-          continue;
-        }
+      if ($resource != null) {
+        foreach ($resource as $field => $value) {
+          // Check which type of relationship we have
+          try {
+            $relationType = array_reverse(explode("\\", get_class($model->{$field}())))[0];
+            $relatedResourceModelClass = $model->{$field}()->getRelated();
+          } catch (\Throwable $e) {
+            continue;
+          }
 
-        switch ($relationType) {
-          case 'BelongsTo':
-            $relatedResource = $resource[$field];
+          switch ($relationType) {
+            case 'BelongsTo':
+              $relatedResource = $resource[$field];
 
-            // Update just one related resource
-            if (!isset($relatedResource['id'])) {
-              // Create new related resource
-              $relatedResourceModel = new $relatedResourceModelClass();
-            } else {
-              // Update new related resource
-              $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
-            }
-            if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
-              // Store related resource with this function
-              $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-            }
-
-            // BelongsTo the foreign key is on the "parent" model
-            $model->{$field . "_id"} = $relatedResourceModel->id;
-            $model->save();
-            break;
-
-          case 'HasMany':
-            $relatedResources = $resource[$field];
-            $oldRelatedResourceIds = $model->{$field}->pluck("id")->toArray();
-            $currentRelatedResourcesIds = [];
-
-            foreach ($relatedResources as $relatedResource) {
               // Update just one related resource
               if (!isset($relatedResource['id'])) {
                 // Create new related resource
@@ -316,35 +299,61 @@ class ResourceBaseController extends Controller
                 // Update new related resource
                 $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
               }
+              if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
+                // Store related resource with this function
+                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+              }
 
-              // Get the foreign key name of the related model in its own table
-              // es. Card->hasMany(CardExercise) => getForeignKeyName = "card_id"
-              $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
+              // BelongsTo the foreign key is on the "parent" model
+              $model->{$field . "_id"} = $relatedResourceModel->id;
+              $model->save();
+              break;
 
-              // Store related resource with this function
-              $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-              $currentRelatedResourcesIds[] = $relatedResourceModel->id;
-            }
+            case 'HasMany':
+              $relatedResources = $resource[$field];
+              $oldRelatedResourceIds = $model->{$field}->pluck("id")->toArray();
+              $currentRelatedResourcesIds = [];
 
-            // Delete owned no more used related resource
-            $resourcesToDeleteIds = array_diff($oldRelatedResourceIds, $currentRelatedResourcesIds);
+              foreach ($relatedResources as $relatedResource) {
+                // Update just one related resource
+                if (!isset($relatedResource['id'])) {
+                  // Create new related resource
+                  $relatedResourceModel = new $relatedResourceModelClass();
+                } else {
+                  // Update new related resource
+                  $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+                }
 
-            foreach ($resourcesToDeleteIds as $resourceId) {
-              Log::info("Deleting $resourceId");
-              $relatedResourceModelClass::destroy($resourceId);
-            }
+                // Get the foreign key name of the related model in its own table
+                // es. Card->hasMany(CardExercise) => getForeignKeyName = "card_id"
+                $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
 
-            break;
+                // Store related resource with this function
+                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+              }
 
-          case 'HasOne':
-            // TODO
-            break;
+              // Delete owned no more used related resource
+              $resourcesToDeleteIds = array_diff($oldRelatedResourceIds, $currentRelatedResourcesIds);
 
-          case 'BelongsToMany':
-            // TODO
-            break;
+              foreach ($resourcesToDeleteIds as $resourceId) {
+                Log::info("Deleting $resourceId");
+                $relatedResourceModelClass::destroy($resourceId);
+              }
+
+              break;
+
+            case 'HasOne':
+              // TODO
+              break;
+
+            case 'BelongsToMany':
+              // TODO
+              break;
+          }
         }
       }
+
 
       DB::commit();
       return $model;
