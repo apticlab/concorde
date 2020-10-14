@@ -24,7 +24,8 @@ class ResourceBaseController extends Controller
   ];
   public $orderBy = [];
 
-  public function index(Request $req) {
+  public function index(Request $req)
+  {
     if (!$this->resourceClass) {
       return null;
     }
@@ -126,31 +127,33 @@ class ResourceBaseController extends Controller
     return $query->get();
   }
 
-  public function roleBaseFilter($query, $user) {
+  public function roleBaseFilter($query, $user)
+  {
     return $query;
   }
 
-  public function indexFilter($query, $params) {
+  public function indexFilter($query, $params)
+  {
     return $query;
   }
 
-  public function preStore($resourceData, $resourceModel) {
+  public function preStore($resourceData, $resourceModel)
+  {
     return $resourceData;
   }
 
-  public function store(Request $request) {
+  public function store(Request $request)
+  {
     try {
       $resourceData = json_decode($request->getContent(), true);
       $resourceModel = new $this->resourceClass();
-
       if (isset($this->validators['create'])) {
         $validator = Validator::make($resourceData, $this->validators['create']);
-
         if ($validator->fails()) {
           return response()->json($validator->errors(), 422);
         }
       }
-
+      
       if (method_exists($this, "preStore")) {
         $resourceData = $this->preStore($resourceData, $resourceModel);
       }
@@ -160,7 +163,6 @@ class ResourceBaseController extends Controller
       return response()->json($savedModel, 201);
     } catch (\Exception $e) {
       DB::rollBack();
-
       return response()->json([
         "message" => $e->getMessage(),
         "file" => $e->getFile(),
@@ -169,11 +171,13 @@ class ResourceBaseController extends Controller
     }
   }
 
-  public function preUpdate($resourceData, $resourceModel) {
+  public function preUpdate($resourceData, $resourceModel)
+  {
     return $resourceData;
   }
 
-  public function update(Request $request, $id) {
+  public function update(Request $request, $id)
+  {
     try {
       $resourceData = json_decode($request->getContent(), true);
       $resourceModel = $this->resourceClass::find($id);
@@ -204,7 +208,8 @@ class ResourceBaseController extends Controller
     }
   }
 
-  public function show($id) {
+  public function show($id)
+  {
     $query = $this->resourceClass::query();
 
     if (isset($this->with) && isset($this->with['show'])) {
@@ -214,7 +219,8 @@ class ResourceBaseController extends Controller
     return $query->where("id", "=", $id)->first();
   }
 
-  public function destroy($id) {
+  public function destroy($id)
+  {
     try {
       $this->resourceClass::destroy($id);
 
@@ -230,7 +236,8 @@ class ResourceBaseController extends Controller
     }
   }
 
-  public function act(Request $req, $resourceId, $actionName) {
+  public function act(Request $req, $resourceId, $actionName)
+  {
     if (method_exists($this, "doAct")) {
       $actionData = json_decode($req->getContent(), true);
       $resource = $this->resourceClass::where("id", $resourceId)->first();
@@ -258,15 +265,16 @@ class ResourceBaseController extends Controller
     }
   }
 
-  public function doAct($resource, $actionName, $actionData) {
+  public function doAct($resource, $actionName, $actionData)
+  {
     return false;
   }
 
-  private function resourceStore($resource, $model) {
+  private function resourceStore($resource, $model)
+  {
     DB::beginTransaction();
 
     $resourceData = [];
-
     foreach (Schema::getColumnListing($model->getTable()) as $columnName) {
       if (isset($resource[$columnName])) {
         $resourceData[$columnName] = $resource[$columnName];
@@ -276,13 +284,11 @@ class ResourceBaseController extends Controller
     try {
       $model->fill($resourceData);
       $model->save();
-
       if ($resource != null) {
         foreach ($resource as $field => $value) {
           // Check which type of relationship we have
           try {
             $relationType = array_reverse(explode("\\", get_class($model->{$field}())))[0];
-
             $relatedResourceModelClass = get_class($model->{$field}()->getRelated());
           } catch (\Throwable $e) {
             continue;
@@ -345,7 +351,21 @@ class ResourceBaseController extends Controller
               break;
 
             case 'HasOne':
-              // TODO
+              $relatedResource = $resource[$field];
+              // Update just one related resource
+              if (!isset($relatedResource['id'])) {
+                // Create new related resource
+                $relatedResourceModel = new $relatedResourceModelClass();
+              } else {
+                // Update new related resource
+                $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+              }
+
+              // Get the foreign key name of the related model
+              $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
+
+              // Store related resource with this function
+              $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
               break;
 
             case 'BelongsToMany':
@@ -360,11 +380,13 @@ class ResourceBaseController extends Controller
       return $model;
     } catch (\Exception $e) {
       DB::rollBack();
+      LOg::info($e);
       throw $e;
     }
   }
 
-  private function getSqlQueryWithBindings($query) {
+  private function getSqlQueryWithBindings($query)
+  {
     return Str::replaceArray("?", $query->getBindings(), $query->toSql());
   }
 }
