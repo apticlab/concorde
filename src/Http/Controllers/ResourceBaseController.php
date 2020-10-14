@@ -9,8 +9,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Aptic\Concorde\helpers;
+use BadMethodCallException;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use ReflectionClass;
 
 class ResourceBaseController extends Controller
 {
@@ -112,7 +114,11 @@ class ResourceBaseController extends Controller
 
     Log::info("Query: " . $this->getSqlQueryWithBindings($query));
 
-    if (isset($this->paginate)) {
+    // Disable pagination by setting no_paginate filter in query
+    $paginateFromController = $this->paginate ?? false;
+    $noPaginateFromQuery = $requestParams['no_paginate'] ?? false;
+
+    if ($paginateFromController && !$noPaginateFromQuery) {
       $paginationRows = $this->paginationRows ?? 10;
       return $query->paginate($paginationRows);
     }
@@ -199,7 +205,13 @@ class ResourceBaseController extends Controller
   }
 
   public function show(Request $request, $id) {
-    return $this->resourceClass::where("id", "=", $id)->first();
+    $query = $this->resourceClass::query();
+
+    if (isset($this->with) && isset($this->with['show'])) {
+      $query->with($this->with['show']);
+    }
+
+    return $query->where("id", "=", $id)->first();
   }
 
   public function destroy($id) {
@@ -255,26 +267,9 @@ class ResourceBaseController extends Controller
 
     $resourceData = [];
 
-    foreach ($resource as $field => $value) {
-      $fieldName = "";
-      $fieldValue = null;
-
-      switch (gettype($value)) {
-        case 'array':
-          if (isset($value['id'])) {
-            $fieldName = $field . "_id";
-            $fieldValue = $value['id'];
-          }
-          break;
-
-        default:
-          $fieldName = $field;
-          $fieldValue = $value;
-      }
-
-      if (Schema::hasColumn($model->getTable(), $fieldName)) {
-        // Check if we are adding an attribute or a column
-        $resourceData[$fieldName] = $fieldValue;
+    foreach (Schema::getColumnListing($model->getTable()) as $columnName) {
+      if (isset($resource[$columnName])) {
+        $resourceData[$columnName] = $resource[$columnName];
       }
     }
 
@@ -282,119 +277,89 @@ class ResourceBaseController extends Controller
       $model->fill($resourceData);
       $model->save();
 
-      // Save related resources
-      foreach ($resource as $field => $value) {
-        switch (gettype($value)) {
-          case 'array':
-            // Multi sync relationship
-            if ($this != null && !isset($this->relatedResources) || $this->relatedResources == []) {
-              break;
-            }
+      if ($resource != null) {
+        foreach ($resource as $field => $value) {
+          // Check which type of relationship we have
+          try {
+            $relationType = array_reverse(explode("\\", get_class($model->{$field}())))[0];
 
-            $relatedResourceData = [];
+            $relatedResourceModelClass = get_class($model->{$field}()->getRelated());
+          } catch (\Throwable $e) {
+            continue;
+          }
 
-            foreach ($this->relatedResources as $name => $data) {
-              if ($name == $field) {
-                $relatedResourceData = $data;
-              }
-            }
-
-            if ($relatedResourceData == []) {
-              break;
-            }
-
-            $resourceIsOwned = false;
-
-            if (isset($relatedResourceData['owned'])) {
-              // When resource is owned, it means the on the child resource
-              // we have the id of the parent resource.
-              // Otherwise, we need to have a normal Many-To-Many relationship
-              $resourceIsOwned = $relatedResourceData['owned'];
-            }
-
-            Log::info("Saving current related resources ids");
-
-            $relatedResourceType = $relatedResourceData['type'] ?? 'many-to-many';
-
-            if ($relatedResourceType == 'many-to-many') {
-              // Keep a copy of old related resources id to delete the no more used ones
-              $oldRelatedResourceIds = $model->{$field}->pluck("id")->toArray();
-              $currentRelatedResourcesIds = [];
-
-              foreach ($value as $index => $relatedResource) {
-                if (!isset($relatedResource['id'])) {
-                  // Create new related resource
-                  Log::info("Creating new related resource");
-                  $relatedResourceModel = new $relatedResourceData['class']();
-                } else {
-                  // Update new related resource
-                  Log::info("Updating new related resource");
-                  $relatedResourceModel = $relatedResourceData['class']::where("id", $relatedResource['id'])->first();
-                }
-
-                if ($resourceIsOwned) {
-                  $relatedResource[$this->singular . "_id"] = $model->id;
-                }
-
-                // Store related resource with this function
-                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-
-                $currentRelatedResourcesIds[] = $relatedResourceModel->id;
-              }
-
-              if (!$resourceIsOwned) {
-                Log::info("Syncing related resource");
-                $model->{$field}()->sync($currentRelatedResourcesIds);
-                break;
-              }
-
-              // Delete owned no more used related resource
-              Log::Info("Deleting no more related resources");
-              $resourcesToDeleteIds = array_diff($oldRelatedResourceIds, $currentRelatedResourcesIds);
-
-              foreach ($resourcesToDeleteIds as $resourceId) {
-                Log::info("Deleting $resourceId");
-                $relatedResourceData['class']::destroy($resourceId);
-              }
-            }
-
-            if ($relatedResourceType == 'one-to-one') {
-              $relatedResource = $value;
+          switch ($relationType) {
+            case 'BelongsTo':
+              $relatedResource = $resource[$field];
 
               // Update just one related resource
               if (!isset($relatedResource['id'])) {
                 // Create new related resource
-                Log::info("Creating new related resource");
-                $relatedResourceModel = new $relatedResourceData['class']();
+                $relatedResourceModel = new $relatedResourceModelClass();
               } else {
                 // Update new related resource
-                Log::info("Updating new related resource");
-                $relatedResourceModel = $relatedResourceData['class']::where("id", $relatedResource['id'])->first();
+                $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+              }
+              if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
+                // Store related resource with this function
+                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
               }
 
-              if ($resourceIsOwned) {
-                $relatedResource[$this->singular . "_id"] = $model->id;
-              } else {
-                $model->{$field . "_id"} = $relatedResourceModel->id;
-                $model->save();
+              // BelongsTo the foreign key is on the "parent" model
+              $model->{$field . "_id"} = $relatedResourceModel->id;
+              $model->save();
+              break;
+
+            case 'HasMany':
+              $relatedResources = $resource[$field];
+              $oldRelatedResourceIds = $model->{$field}->pluck("id")->toArray();
+              $currentRelatedResourcesIds = [];
+
+              foreach ($relatedResources as $relatedResource) {
+                // Update just one related resource
+                if (!isset($relatedResource['id'])) {
+                  // Create new related resource
+                  $relatedResourceModel = new $relatedResourceModelClass();
+                } else {
+                  // Update new related resource
+                  $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+                }
+
+                // Get the foreign key name of the related model in its own table
+                // es. Card->hasMany(CardExercise) => getForeignKeyName = "card_id"
+                $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
+
+                // Store related resource with this function
+                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                $currentRelatedResourcesIds[] = $relatedResourceModel->id;
               }
 
-              // Store related resource with this function
-              $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-            }
-            break;
+              // Delete owned no more used related resource
+              $resourcesToDeleteIds = array_diff($oldRelatedResourceIds, $currentRelatedResourcesIds);
 
-          default:
-            break;
+              foreach ($resourcesToDeleteIds as $resourceId) {
+                Log::info("Deleting $resourceId");
+                $relatedResourceModelClass::destroy($resourceId);
+              }
+
+              break;
+
+            case 'HasOne':
+              // TODO
+              break;
+
+            case 'BelongsToMany':
+              // TODO
+              break;
+          }
         }
       }
 
-      DB::commit();
 
+      DB::commit();
       return $model;
     } catch (\Exception $e) {
       DB::rollBack();
-
       throw $e;
     }
   }
