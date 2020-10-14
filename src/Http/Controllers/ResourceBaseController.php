@@ -282,7 +282,8 @@ class ResourceBaseController extends Controller
           // Check which type of relationship we have
           try {
             $relationType = array_reverse(explode("\\", get_class($model->{$field}())))[0];
-            $relatedResourceModelClass = $model->{$field}()->getRelated();
+
+            $relatedResourceModelClass = get_class($model->{$field}()->getRelated());
           } catch (\Throwable $e) {
             continue;
           }
