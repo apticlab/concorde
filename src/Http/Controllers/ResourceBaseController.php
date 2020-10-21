@@ -153,7 +153,7 @@ class ResourceBaseController extends Controller
           return response()->json($validator->errors(), 422);
         }
       }
-      
+
       if (method_exists($this, "preStore")) {
         $resourceData = $this->preStore($resourceData, $resourceModel);
       }
@@ -208,7 +208,7 @@ class ResourceBaseController extends Controller
     }
   }
 
-  public function show($id)
+  public function show(Request $request, $id)
   {
     $query = $this->resourceClass::query();
 

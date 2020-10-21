@@ -75,7 +75,9 @@ class LoginController extends Controller {
            ->first();
 
         try {
-          $user = App::call("\App\Http\Controllers\CustomLoginController@postLogin", [$user]);
+          $user = App::call("\App\Http\Controllers\CustomLoginController@postLogin", [
+            "user" => $user
+          ]);
         } catch (ReflectionException $re) {
           Log::info("\App\Http\Controllers\CustomLoginController@postLogin does not exists, skipping...");
         }
