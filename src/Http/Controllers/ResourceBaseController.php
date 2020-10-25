@@ -370,6 +370,12 @@ class ResourceBaseController extends Controller
 
             case 'BelongsToMany':
               // TODO
+              $relatedResources = $resource[$field];
+
+              $relatedResourcesIds = array_column($relatedResources, "id");
+
+              $model->{$field}()->sync($relatedResourcesIds);
+              Log::info($relatedResourcesIds);
               break;
           }
         }
