@@ -102,6 +102,7 @@ class ResourceBaseController extends Controller
             );
 
           $query->{$orderByFunction}($orderQuery);
+          continue;
         }
 
         if (strpos($orderByClause[0], "_count")) {
@@ -109,7 +110,10 @@ class ResourceBaseController extends Controller
           $query
             ->withCount([$countField . " as " . $orderByClause[0]])
             ->orderBy($orderByClause[0], $orderByClause[1]);
+          continue;
         }
+
+        $query->orderBy($orderByClause[0], $orderByClause[1]);
       }
     }
 
