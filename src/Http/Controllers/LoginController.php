@@ -74,18 +74,27 @@ class LoginController extends Controller {
            ])
            ->first();
 
+        $token = $tokens->access_token;
+
+        $loginResult = 200;
+        $loginData = [
+          "user" => $user,
+          "token" => $token,
+        ];
+
         try {
-          $user = App::call("\App\Http\Controllers\CustomLoginController@postLogin", [
-            "user" => $user
+          $result = App::call("\App\Http\Controllers\CustomLoginController@postLogin", [
+            "user" => $user,
+            "token" => $token,
           ]);
+
+          $loginData = $result['data'];
+          $loginResult = $result['result'];
         } catch (ReflectionException $re) {
           Log::info("\App\Http\Controllers\CustomLoginController@postLogin does not exists, skipping...");
         }
 
-        return response([
-          "user" => $user,
-          "access_token" => $tokens->access_token,
-        ], 200);
+        return response($loginData, $loginResult);
     }
   }
 
