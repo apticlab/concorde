@@ -340,8 +340,11 @@ class ResourceBaseController extends Controller
                 $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
 
                 // Store related resource with this function
-                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-                $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+                if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
+                  // Store related resource with this function
+                  $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                  $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+                }
               }
 
               // Delete owned no more used related resource
@@ -369,17 +372,19 @@ class ResourceBaseController extends Controller
               $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
 
               // Store related resource with this function
-              $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+              if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
+                // Store related resource with this function
+                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+              }
               break;
 
             case 'BelongsToMany':
-              // TODO
               $relatedResources = $resource[$field];
 
               $relatedResourcesIds = array_column($relatedResources, "id");
 
               $model->{$field}()->sync($relatedResourcesIds);
-              Log::info($relatedResourcesIds);
               break;
           }
         }
