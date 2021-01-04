@@ -62,7 +62,7 @@ class LoginController extends Controller {
         break;
 
       case 401:
-        return response("wrong_credentials", 401);
+        return response("wrong-credentials", 401);
         break;
 
       case 200:
