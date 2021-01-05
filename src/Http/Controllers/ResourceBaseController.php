@@ -51,6 +51,10 @@ class ResourceBaseController extends Controller
       $query->with($this->with['index']);
     }
 
+    if (isset($this->withCount) && isset($this->withCount['index'])) {
+      $query->withCount($this->withCount['index']);
+    }
+
     if (isset($this->orderBy) && count($this->orderBy) > 0) {
       foreach ($this->orderBy as $orderByClause) {
         if (strpos($orderByClause[0], ".") != false) {
