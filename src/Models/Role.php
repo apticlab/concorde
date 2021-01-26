@@ -32,7 +32,7 @@ class Role extends Model
         return;
       }
 
-      switch ($authUser->role->code) {
+      switch ($authUser->role && $authUser->role->code) {
         case "superadmin":
           break;
 

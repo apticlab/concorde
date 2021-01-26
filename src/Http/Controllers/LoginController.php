@@ -2,21 +2,35 @@
 
 namespace Aptic\Concorde\Http\Controllers;
 
-use App\Models\User;
+use Aptic\Concorde\Models\BaseUser;
 use Exception;
 
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use ReflectionException;
 
 class LoginController extends Controller {
   public function __construct() {
     $this->client = DB::table('oauth_clients')
          ->where("password_client", 1)
          ->first();
+  }
+
+  public function me() {
+    $authUser = Auth::user();
+
+    try {
+      $authUser = App::call("\App\Http\Controllers\CustomLoginController@me", [$authUser]);
+    } catch (ReflectionException $re) {
+      // Use defaults
+    }
+
+    return response($authUser, 200);
   }
 
   public function getAuthUser(Request $request) {
@@ -40,6 +54,7 @@ class LoginController extends Controller {
 
     $loginRequest = Request::create("/oauth/token", "POST", $passportData);
     $response = app()->handle($loginRequest);
+    $responseStatusCode = $response->getStatusCode();
 
     switch ($response->getStatusCode()) {
       case 500:
@@ -47,25 +62,43 @@ class LoginController extends Controller {
         break;
 
       case 401:
-        return response("wrong_credentials", 401);
+        return response("wrong-credentials", 401);
         break;
 
       case 200:
         $tokens = json_decode($response->getContent());
 
-        $user = User::where($loginField, $request->username)
+        $user = BaseUser::where($loginField, $request->username)
            ->with([
              'role'
            ])
            ->first();
 
-        return response([
+        $token = $tokens->access_token;
+
+        $loginResult = 200;
+        $loginData = [
           "user" => $user,
-          "access_token" => $tokens->access_token,
-        ], 200);
+          "token" => $token,
+        ];
+
+        try {
+          $result = App::call("\App\Http\Controllers\CustomLoginController@postLogin", [
+            "user" => $user,
+            "token" => $token,
+          ]);
+
+          $loginData = $result['data'];
+          $loginResult = $result['result'];
+        } catch (ReflectionException $re) {
+          Log::info("\App\Http\Controllers\CustomLoginController@postLogin does not exists, skipping...");
+        }
+
+        return response($loginData, $loginResult);
     }
   }
 
+  /*
   public function resetPassword(Request $request) {
     $email = $request->email;
 
@@ -165,4 +198,5 @@ class LoginController extends Controller {
         500);
     }
   }
+  */
 }
