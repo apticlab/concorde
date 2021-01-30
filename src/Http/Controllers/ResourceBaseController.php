@@ -8,8 +8,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 use Aptic\Concorde\helpers;
 use BadMethodCallException;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use SplFileObject;
@@ -427,117 +429,148 @@ class ResourceBaseController extends Controller
     }
 
     try {
-      $model->fill($resourceData);
-      $model->save();
-      if ($resource != null) {
-        foreach ($resource as $field => $value) {
-          // Check which type of relationship we have
-          try {
-            $relationType = array_reverse(explode("\\", get_class($model->{$field}())))[0];
-            $relatedResourceModelClass = get_class($model->{$field}()->getRelated());
-          } catch (\Throwable $e) {
-            continue;
-          }
+        $model->fill($resourceData);
+        $model->save();
+        if ($resource != null) {
+            foreach ($resource as $field => $value) {
+                // Check if we need to upload an image 
+                if (array_key_exists($field, $this->images) && !!$value && str_starts_with($value, "data")) {
+                    $imageTokens = explode(",", $value);
+                    $imageInfo = $imageTokens[0];
+                    $imageContent = $imageTokens[1];
+                    $imageExtension = "";
 
-          switch ($relationType) {
-            case 'BelongsTo':
-              $relatedResource = $resource[$field];
+                    $matches = [];
 
-              // Update just one related resource
-              if (!isset($relatedResource['id'])) {
-                // Create new related resource
-                $relatedResourceModel = new $relatedResourceModelClass();
-              } else {
-                // Update new related resource
-                $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
-              }
-              if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
-                // Store related resource with this function
-                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-              }
+                    // Try to find the extension from image info
+                    preg_match('/^data:image\/(\w+);base64/', $imageInfo, $matches);  
 
-              // BelongsTo the foreign key is on the "parent" model
-              $model->{$field . "_id"} = $relatedResourceModel->id;
-              $model->save();
-              break;
+                    if (count($matches) > 1) {
+                        $imageExtension = $matches[1];
+                    }
 
-            case 'HasMany':
-              $relatedResources = $resource[$field];
-              $oldRelatedResourceIds = $model->{$field}->pluck("id")->toArray();
-              $currentRelatedResourcesIds = [];
+                    $imageName = $field . "_" . $model->id . "_" . Carbon::now()->timestamp . "." . $imageExtension;
 
-              foreach ($relatedResources as $relatedResource) {
-                // Update just one related resource
-                if (!isset($relatedResource['id'])) {
-                  // Create new related resource
-                  $relatedResourceModel = new $relatedResourceModelClass();
-                } else {
-                  // Update new related resource
-                  $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+                    if (Storage::disk("local")->put($imageName, base64_decode($imageContent))) {
+                        // Delete old image
+                        Storage::disk("local")->delete($model->{$field});
+
+                        // Save image url to resource
+                        $model->{$field} = $imageName;
+                        $model->save();
+                    } 
+
+                    // Go to the next iteration
+                    continue;
                 }
 
-                // Get the foreign key name of the related model in its own table
-                // es. Card->hasMany(CardExercise) => getForeignKeyName = "card_id"
-                $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
-
-                // Store related resource with this function
-                if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
-                  // Store related resource with this function
-                  $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-                  $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+                // Check which type of relationship we have
+                try {
+                    $relationType = array_reverse(explode("\\", get_class($model->{$field}())))[0];
+                    $relatedResourceModelClass = get_class($model->{$field}()->getRelated());
+                } catch (\Throwable $e) {
+                    continue;
                 }
-              }
 
-              // Delete owned no more used related resource
-              $resourcesToDeleteIds = array_diff($oldRelatedResourceIds, $currentRelatedResourcesIds);
+                switch ($relationType) {
+                case 'BelongsTo':
+                    $relatedResource = $resource[$field];
 
-              foreach ($resourcesToDeleteIds as $resourceId) {
-                Log::info("Deleting $resourceId");
-                $relatedResourceModelClass::destroy($resourceId);
-              }
+                    // Update just one related resource
+                    if (!isset($relatedResource['id'])) {
+                        // Create new related resource
+                        $relatedResourceModel = new $relatedResourceModelClass();
+                    } else {
+                        // Update new related resource
+                        $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+                    }
+                    if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
+                        // Store related resource with this function
+                        $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                    }
 
-              break;
+                    // BelongsTo the foreign key is on the "parent" model
+                    $model->{$field . "_id"} = $relatedResourceModel->id;
+                    $model->save();
+                    break;
 
-            case 'HasOne':
-              $relatedResource = $resource[$field];
-              // Update just one related resource
-              if (!isset($relatedResource['id'])) {
-                // Create new related resource
-                $relatedResourceModel = new $relatedResourceModelClass();
-              } else {
-                // Update new related resource
-                $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
-              }
+                case 'HasMany':
+                    $relatedResources = $resource[$field];
+                    $oldRelatedResourceIds = $model->{$field}->pluck("id")->toArray();
+                    $currentRelatedResourcesIds = [];
 
-              // Get the foreign key name of the related model
-              $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
+                    foreach ($relatedResources as $relatedResource) {
+                        // Update just one related resource
+                        if (!isset($relatedResource['id'])) {
+                            // Create new related resource
+                            $relatedResourceModel = new $relatedResourceModelClass();
+                        } else {
+                            // Update new related resource
+                            $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+                        }
 
-              // Store related resource with this function
-              if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
-                // Store related resource with this function
-                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-                $currentRelatedResourcesIds[] = $relatedResourceModel->id;
-              }
-              break;
+                        // Get the foreign key name of the related model in its own table
+                        // es. Card->hasMany(CardExercise) => getForeignKeyName = "card_id"
+                        $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
 
-            case 'BelongsToMany':
-              $relatedResources = $resource[$field];
+                        // Store related resource with this function
+                        if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
+                            // Store related resource with this function
+                            $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                            $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+                        }
+                    }
 
-              $relatedResourcesIds = array_column($relatedResources, "id");
+                    // Delete owned no more used related resource
+                    $resourcesToDeleteIds = array_diff($oldRelatedResourceIds, $currentRelatedResourcesIds);
 
-              $model->{$field}()->sync($relatedResourcesIds);
-              break;
-          }
+                    foreach ($resourcesToDeleteIds as $resourceId) {
+                        Log::info("Deleting $resourceId");
+                        $relatedResourceModelClass::destroy($resourceId);
+                    }
+
+                    break;
+
+                case 'HasOne':
+                    $relatedResource = $resource[$field];
+                    // Update just one related resource
+                    if (!isset($relatedResource['id'])) {
+                        // Create new related resource
+                        $relatedResourceModel = new $relatedResourceModelClass();
+                    } else {
+                        // Update new related resource
+                        $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+                    }
+
+                    // Get the foreign key name of the related model
+                    $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
+
+                    // Store related resource with this function
+                    if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
+                        // Store related resource with this function
+                        $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                        $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+                    }
+                    break;
+
+                case 'BelongsToMany':
+                    $relatedResources = $resource[$field];
+
+                    $relatedResourcesIds = array_column($relatedResources, "id");
+
+                    $model->{$field}()->sync($relatedResourcesIds);
+                    break;
+                }
+            }
         }
-      }
 
 
-      DB::commit();
-      return $model;
+        DB::commit();
+        return $model;
     } catch (\Exception $e) {
-      DB::rollBack();
-      LOg::info($e);
-      throw $e;
+        DB::rollBack();
+        Log::info($e);
+        throw $e;
     }
   }
 
