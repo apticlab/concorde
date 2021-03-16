@@ -197,7 +197,10 @@ class ResourceBaseController extends Controller
       if (isset($this->validators['create'])) {
         $validator = Validator::make($resourceData, $this->validators['create']);
         if ($validator->fails()) {
-          return response()->json($validator->errors(), 422);
+            return response()->json([
+                "message" => "The given data was invalid",
+                "errors" => $validator->errors(), 
+            ], 422);
         }
       }
 
@@ -233,7 +236,10 @@ class ResourceBaseController extends Controller
         $validator = Validator::make($resourceData, $this->validators['edit']);
 
         if ($validator->fails()) {
-          return response()->json($validator->errors(), 422);
+            return response()->json([
+                "message" => "The given data was invalid",
+                "errors" => $validator->errors(), 
+            ], 422);
         }
       }
 
