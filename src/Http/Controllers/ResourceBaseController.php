@@ -439,35 +439,37 @@ class ResourceBaseController extends Controller
         $model->save();
         if ($resource != null) {
             foreach ($resource as $field => $value) {
-                // Check if we need to upload an image 
-                if (array_key_exists($field, $this->images) && !!$value && str_starts_with($value, "data")) {
-                    $imageTokens = explode(",", $value);
-                    $imageInfo = $imageTokens[0];
-                    $imageContent = $imageTokens[1];
-                    $imageExtension = "";
+                // Check if we need to upload an image
+                if(isset($this->images)) { 
+                  if (array_key_exists($field, $this->images) && !!$value && str_starts_with($value, "data")) {
+                      $imageTokens = explode(",", $value);
+                      $imageInfo = $imageTokens[0];
+                      $imageContent = $imageTokens[1];
+                      $imageExtension = "";
 
-                    $matches = [];
+                      $matches = [];
 
-                    // Try to find the extension from image info
-                    preg_match('/^data:image\/(\w+);base64/', $imageInfo, $matches);  
+                      // Try to find the extension from image info
+                      preg_match('/^data:image\/(\w+);base64/', $imageInfo, $matches);  
 
-                    if (count($matches) > 1) {
-                        $imageExtension = $matches[1];
-                    }
+                      if (count($matches) > 1) {
+                          $imageExtension = $matches[1];
+                      }
 
-                    $imageName = $field . "_" . $model->id . "_" . Carbon::now()->timestamp . "." . $imageExtension;
+                      $imageName = $field . "_" . $model->id . "_" . Carbon::now()->timestamp . "." . $imageExtension;
 
-                    if (Storage::disk("local")->put($imageName, base64_decode($imageContent))) {
-                        // Delete old image
-                        Storage::disk("local")->delete($model->{$field});
+                      if (Storage::disk("local")->put($imageName, base64_decode($imageContent))) {
+                          // Delete old image
+                          Storage::disk("local")->delete($model->{$field});
 
-                        // Save image url to resource
-                        $model->{$field} = $imageName;
-                        $model->save();
-                    } 
+                          // Save image url to resource
+                          $model->{$field} = $imageName;
+                          $model->save();
+                      } 
 
-                    // Go to the next iteration
-                    continue;
+                      // Go to the next iteration
+                      continue;
+                  }
                 }
 
                 // Check which type of relationship we have
