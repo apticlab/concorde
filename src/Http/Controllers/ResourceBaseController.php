@@ -210,6 +210,10 @@ class ResourceBaseController extends Controller
 
       $savedModel = $this->resourceStore($resourceData, $resourceModel);
 
+      if (method_exists($this, "postStore")) {
+        $resourceData = $this->postStore($resourceData, $savedModel);
+      }
+
       return response()->json($savedModel, 201);
     } catch (\Exception $e) {
       DB::rollBack();
@@ -249,6 +253,10 @@ class ResourceBaseController extends Controller
 
       $savedModel = $this->resourceStore($resourceData, $resourceModel);
 
+      if (method_exists($this, "postUpdate")) {
+        $resourceData = $this->postUpdate($resourceData, $resourceModel);
+      }
+
       return response()->json($savedModel, 201);
     } catch (\Exception $e) {
       DB::rollBack();
@@ -259,6 +267,11 @@ class ResourceBaseController extends Controller
         "line" => $e->getLine(),
       ], 500);
     }
+  }
+
+  public function postUpdate($resourceData, $resourceModel)
+  {
+    return $resourceData;
   }
 
   public function show(Request $request, $id)
