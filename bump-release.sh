@@ -20,6 +20,13 @@ then
   exit 1;
 fi
 
+if ! command -v semver &> /dev/null
+then
+    echo "semver could not be found."
+    echo "please install it using npm install -g semver"
+    exit
+fi
+
 CURRENT_VERSION=$(git tag --sort version:refname | tail -n1)
 NEW_VERSION=$(semver -i $VERSION_BUMP $CURRENT_VERSION)
 
