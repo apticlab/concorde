@@ -471,7 +471,7 @@ class ResourceBaseController extends Controller
                             // Update new related resource
                             $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
                         }
-                        if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
+                        if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
                             // Store related resource with this function
                             $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
                         }
@@ -501,7 +501,7 @@ class ResourceBaseController extends Controller
                             $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
 
                             // Store related resource with this function
-                            if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
+                            if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
                                 // Store related resource with this function
                                 $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
                                 $currentRelatedResourcesIds[] = $relatedResourceModel->id;
@@ -533,7 +533,7 @@ class ResourceBaseController extends Controller
                         $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
 
                         // Store related resource with this function
-                        if (!(isset($model->readonly) && in_array($field, $model->readonly))) {
+                        if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
                             // Store related resource with this function
                             $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
                             $currentRelatedResourcesIds[] = $relatedResourceModel->id;
