@@ -184,418 +184,424 @@ class ResourceBaseController extends Controller
     public function preStore($resourceData, $resourceModel) {
         return $resourceData;
     }
+    
+    public function postStore($resourceData, $resourceModel) {
+        return $resourceData;
+    }
 
     public function store(Request $request) {
-        try {
-            $resourceData = json_decode($request->getContent(), true);
-            $resourceModel = new $this->resourceClass();
-            if (isset($this->validators['create'])) {
-                $validator = Validator::make($resourceData, $this->validators['create']);
-                if ($validator->fails()) {
-                    return response()->json([
-                        "message" => "The given data was invalid",
-                        "errors" => $validator->errors(), 
-                    ], 422);
-                }
-            }
-
-            if (method_exists($this, "preStore")) {
-                $resourceData = $this->preStore($resourceData, $resourceModel);
-            }
-
-            $savedModel = $this->resourceStore($resourceData, $resourceModel);
-
-            if (method_exists($this, "postStore")) {
-                $resourceData = $this->postStore($resourceData, $savedModel);
-            }
-
-            return response()->json($savedModel, 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
+      DB::beginTransaction();
+      try {
+        $resourceData = json_decode($request->getContent(), true);
+        $resourceModel = new $this->resourceClass();
+        if (isset($this->validators['create'])) {
+          $validator = Validator::make($resourceData, $this->validators['create']);
+          if ($validator->fails()) {
             return response()->json([
-                "message" => $e->getMessage(),
-                "file" => $e->getFile(),
-                "line" => $e->getLine(),
-            ], 500);
+              "message" => "The given data was invalid",
+              "errors" => $validator->errors(), 
+            ], 422);
+          }
         }
+
+        if (method_exists($this, "preStore")) {
+          $resourceData = $this->preStore($resourceData, $resourceModel);
+        }
+
+        $savedModel = $this->resourceStore($resourceData, $resourceModel);
+
+        if (method_exists($this, "postStore")) {
+          $savedModel = $this->postStore($resourceData, $savedModel);
+        }
+
+        DB::commit();
+        return response()->json($savedModel, 201);
+      } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json([
+          "message" => $e->getMessage(),
+          "file" => $e->getFile(),
+          "line" => $e->getLine(),
+        ], 500);
+      }
     }
 
     public function preUpdate($resourceData, $resourceModel) {
-        return $resourceData;
+      return $resourceData;
     }
 
     public function update(Request $request, $id) {
-        try {
-            $resourceData = json_decode($request->getContent(), true);
-            $resourceModel = $this->resourceClass::find($id);
+      try {
+        $resourceData = json_decode($request->getContent(), true);
+        $resourceModel = $this->resourceClass::find($id);
 
-            if (isset($this->validators['edit'])) {
-                $validator = Validator::make($resourceData, $this->validators['edit']);
+        if (isset($this->validators['edit'])) {
+          $validator = Validator::make($resourceData, $this->validators['edit']);
 
-                if ($validator->fails()) {
-                    return response()->json([
-                        "message" => "The given data was invalid",
-                        "errors" => $validator->errors(), 
-                    ], 422);
-                }
-            }
-
-            if (method_exists($this, "preUpdate")) {
-                $resourceData = $this->preUpdate($resourceData, $resourceModel);
-            }
-
-            $savedModel = $this->resourceStore($resourceData, $resourceModel);
-
-            if (method_exists($this, "postUpdate")) {
-                $resourceData = $this->postUpdate($resourceData, $resourceModel);
-            }
-
-            return response()->json($savedModel, 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-
+          if ($validator->fails()) {
             return response()->json([
-                "message" => $e->getMessage(),
-                "file" => $e->getFile(),
-                "line" => $e->getLine(),
-            ], 500);
+              "message" => "The given data was invalid",
+              "errors" => $validator->errors(), 
+            ], 422);
+          }
         }
+
+        if (method_exists($this, "preUpdate")) {
+          $resourceData = $this->preUpdate($resourceData, $resourceModel);
+        }
+
+        $savedModel = $this->resourceStore($resourceData, $resourceModel);
+
+        if (method_exists($this, "postUpdate")) {
+          $resourceData = $this->postUpdate($resourceData, $resourceModel);
+        }
+
+        return response()->json($savedModel, 201);
+      } catch (\Exception $e) {
+        DB::rollBack();
+
+        return response()->json([
+          "message" => $e->getMessage(),
+          "file" => $e->getFile(),
+          "line" => $e->getLine(),
+        ], 500);
+      }
     }
 
     public function postUpdate($resourceData, $resourceModel) {
-        return $resourceData;
+      return $resourceData;
     }
 
     public function show(Request $request, $id) {
-        $query = $this->resourceClass::query();
+      $query = $this->resourceClass::query();
 
-        if (isset($this->with) && isset($this->with['show'])) {
-            $query->with($this->with['show']);
-        }
+      if (isset($this->with) && isset($this->with['show'])) {
+        $query->with($this->with['show']);
+      }
 
-        return $query->where("id", "=", $id)->first();
+      return $query->where("id", "=", $id)->first();
     }
 
     public function destroy($id) {
-        try {
-            $this->resourceClass::destroy($id);
+      try {
+        $this->resourceClass::destroy($id);
 
-            return response()->json("ok", 200);
-        } catch (\Exception $e) {
-            DB::rollBack();
+        return response()->json("ok", 200);
+      } catch (\Exception $e) {
+        DB::rollBack();
 
-            return response()->json([
-                "message" => $e->getMessage(),
-                "file" => $e->getFile(),
-                "line" => $e->getLine(),
-            ], 500);
-        }
+        return response()->json([
+          "message" => $e->getMessage(),
+          "file" => $e->getFile(),
+          "line" => $e->getLine(),
+        ], 500);
+      }
     }
 
     public function act(Request $req, $resourceId, $actionName) {
-        if (method_exists($this, "doAct")) {
-            $actionData = json_decode($req->getContent(), true);
-            $resource = $this->resourceClass::where("id", $resourceId)->first();
+      if (method_exists($this, "doAct")) {
+        $actionData = json_decode($req->getContent(), true);
+        $resource = $this->resourceClass::where("id", $resourceId)->first();
 
-            try {
-                DB::beginTransaction();
-                $result = $this->doAct($resource, $actionName, $actionData);
+        try {
+          DB::beginTransaction();
+          $result = $this->doAct($resource, $actionName, $actionData);
 
-                if (!$result) {
-                    throw new Exception("action_not_found");
-                }
+          if (!$result) {
+            throw new Exception("action_not_found");
+          }
 
-                DB::commit();
+          DB::commit();
 
-                return response()->json($result, 200);
-            } catch (\Exception $e) {
-                DB::rollBack();
+          return response()->json($result, 200);
+        } catch (\Exception $e) {
+          DB::rollBack();
 
-                return response()->json([
-                    "message" => $e->getMessage(),
-                    "file" => $e->getFile(),
-                    "line" => $e->getLine(),
-                ], 500);
-            }
+          return response()->json([
+            "message" => $e->getMessage(),
+            "file" => $e->getFile(),
+            "line" => $e->getLine(),
+          ], 500);
         }
+      }
     }
 
     public function massive(Request $req) {
-        $resourcesFile = $req->file("resources");
+      $resourcesFile = $req->file("resources");
 
-        try {
-            DB::beginTransaction();
-            $savedResources = $this->doMassiveStore($resourcesFile);
-            DB::commit();
+      try {
+        DB::beginTransaction();
+        $savedResources = $this->doMassiveStore($resourcesFile);
+        DB::commit();
 
-            return response()->json($savedResources, 200);
-        } catch (ValidationException $e) {
-            return response()->json($e->validator, 422);
-        } catch (\Exception $e) {
-            DB::rollBack();
+        return response()->json($savedResources, 200);
+      } catch (ValidationException $e) {
+        return response()->json($e->validator, 422);
+      } catch (\Exception $e) {
+        DB::rollBack();
 
-            return response()->json([
-                "message" => $e->getMessage(),
-                "file" => $e->getFile(),
-                "line" => $e->getLine(),
-            ], 500);
-        }
+        return response()->json([
+          "message" => $e->getMessage(),
+          "file" => $e->getFile(),
+          "line" => $e->getLine(),
+        ], 500);
+      }
     }
 
     private function doMassiveStore(UploadedFile $resourcesFile) {
-        $filePath = $resourcesFile->getRealPath();
-        $fileHandle = fopen($filePath, "r");
+      $filePath = $resourcesFile->getRealPath();
+      $fileHandle = fopen($filePath, "r");
 
-        $csvDelimiter = getFileDelimiter($filePath);
+      $csvDelimiter = getFileDelimiter($filePath);
 
-        Log::info("Csv delimiter: $csvDelimiter");
+      Log::info("Csv delimiter: $csvDelimiter");
 
-        $rows = [];
+      $rows = [];
 
-        // Get the first row as headers
-        $headers = fgetcsv($fileHandle, 0, $csvDelimiter);
+      // Get the first row as headers
+      $headers = fgetcsv($fileHandle, 0, $csvDelimiter);
 
-        // Put each csv row inside associative array
-        while (($csvRow = fgetcsv($fileHandle, 0, $csvDelimiter)) !== FALSE) {
-            $row = [];
+      // Put each csv row inside associative array
+      while (($csvRow = fgetcsv($fileHandle, 0, $csvDelimiter)) !== FALSE) {
+        $row = [];
 
-            foreach ($headers as $index => $header) {
-                $row[$header] = $csvRow[$index];
+        foreach ($headers as $index => $header) {
+          $row[$header] = $csvRow[$index];
+        }
+
+        $rows[] = $row;
+      }
+
+      $resourceRows = [];
+
+      foreach ($rows as $row) {
+        foreach ($this->massiveHeaders as $index => $massiveHeader) {
+          switch ($massiveHeader['type']) {
+          case 'resource':
+            $whereOperator = $massiveHeader['operator'] ?? '=';
+
+            $relatedResource = $massiveHeader['resourceClass']
+              ::where($massiveHeader['foreignField'], $whereOperator, $row[$massiveHeader['columnName']])
+                ->first();
+
+            if ($relatedResource) {
+              $resourceRow[$massiveHeader['field']] = $relatedResource->id;
+            }
+            break;
+          case 'date':
+            if (!$row[$massiveHeader['columnName']]) {
+              continue 2;
             }
 
-            $rows[] = $row;
+            $dateObject = Carbon::createFromFormat($massiveHeader['inFormat'], $row[$massiveHeader['columnName']]);
+            $resourceRow[$massiveHeader['field']] = $dateObject->format($massiveHeader['outFormat']);
+
+            break;
+          default:
+            $resourceRow[$massiveHeader['field']] = $row[$massiveHeader['columnName']];
+            break;
+          }
         }
 
-        $resourceRows = [];
+        $resourceRows[] = $resourceRow;
+      }
 
-        foreach ($rows as $row) {
-            foreach ($this->massiveHeaders as $index => $massiveHeader) {
-                switch ($massiveHeader['type']) {
-                case 'resource':
-                    $whereOperator = $massiveHeader['operator'] ?? '=';
+      $errors = [];
+      $savedResource = 0;
 
-                    $relatedResource = $massiveHeader['resourceClass']
-                        ::where($massiveHeader['foreignField'], $whereOperator, $row[$massiveHeader['columnName']])
-                            ->first();
-
-                    if ($relatedResource) {
-                        $resourceRow[$massiveHeader['field']] = $relatedResource->id;
-                    }
-                    break;
-                case 'date':
-                    if (!$row[$massiveHeader['columnName']]) {
-                        continue 2;
-                    }
-
-                    $dateObject = Carbon::createFromFormat($massiveHeader['inFormat'], $row[$massiveHeader['columnName']]);
-                    $resourceRow[$massiveHeader['field']] = $dateObject->format($massiveHeader['outFormat']);
-
-                    break;
-                default:
-                    $resourceRow[$massiveHeader['field']] = $row[$massiveHeader['columnName']];
-                    break;
-                }
-            }
-
-            $resourceRows[] = $resourceRow;
+      foreach ($resourceRows as $resourceRow) {
+        try {
+          $this->doStore($resourceRow);
+          $savedResource += 1;
+        } catch (ValidationException $e) {
+          Log::info($e->validator);
+          $errors[] = $e->validator;
         }
+      }
 
-        $errors = [];
-        $savedResource = 0;
+      if (count($errors) > 0) {
+        throw new ValidationException($errors);
+      }
 
-        foreach ($resourceRows as $resourceRow) {
-            try {
-                $this->doStore($resourceRow);
-                $savedResource += 1;
-            } catch (ValidationException $e) {
-                Log::info($e->validator);
-                $errors[] = $e->validator;
-            }
-        }
-
-        if (count($errors) > 0) {
-            throw new ValidationException($errors);
-        }
-
-        return $savedResource;
+      return $savedResource;
     }
 
     public function doAct($resource, $actionName, $actionData) {
-        return false;
+      return false;
     }
 
     private function resourceStore($resource, $model) {
-        DB::beginTransaction();
+      DB::beginTransaction();
 
-        $resourceData = [];
-        foreach (Schema::getColumnListing($model->getTable()) as $columnName) {
-            if (isset($this->images) && array_key_exists($columnName, $this->images)) {
+      $resourceData = [];
+      foreach (Schema::getColumnListing($model->getTable()) as $columnName) {
+        if (isset($this->images) && array_key_exists($columnName, $this->images)) {
+          continue;
+        } 
+
+        if (isset($resource[$columnName])) {
+          $resourceData[$columnName] = $resource[$columnName];
+        }
+      }
+
+      try {
+        $model->fill($resourceData);
+        $model->save();
+        if ($resource != null) {
+          foreach ($resource as $field => $value) {
+            // Check if we need to upload an image
+            if(isset($this->images)) { 
+              if (array_key_exists($field, $this->images) && !!$value && str_starts_with($value, "data")) {
+                $this->saveImage($model, $value, $field);
                 continue;
-            } 
-
-            if (isset($resource[$columnName])) {
-                $resourceData[$columnName] = $resource[$columnName];
+              }
             }
-        }
 
-        try {
-            $model->fill($resourceData);
-            $model->save();
-            if ($resource != null) {
-                foreach ($resource as $field => $value) {
-                    // Check if we need to upload an image
-                    if(isset($this->images)) { 
-                        if (array_key_exists($field, $this->images) && !!$value && str_starts_with($value, "data")) {
-                            $this->saveImage($model, $value, $field);
-                            continue;
-                        }
-                    }
+            // Check which type of relationship we have
+            try {
+              $relationType = array_reverse(explode("\\", get_class($model->{$field}())))[0];
+              $relatedResourceModelClass = get_class($model->{$field}()->getRelated());
+            } catch (\Throwable $e) {
+              continue;
+            }
 
-                    // Check which type of relationship we have
-                    try {
-                        $relationType = array_reverse(explode("\\", get_class($model->{$field}())))[0];
-                        $relatedResourceModelClass = get_class($model->{$field}()->getRelated());
-                    } catch (\Throwable $e) {
-                        continue;
-                    }
+            switch ($relationType) {
+            case 'BelongsTo':
+              $relatedResource = $resource[$field];
 
-                    switch ($relationType) {
-                    case 'BelongsTo':
-                        $relatedResource = $resource[$field];
+              // Update just one related resource
+              if (!isset($relatedResource['id'])) {
+                // Create new related resource
+                $relatedResourceModel = new $relatedResourceModelClass();
+              } else {
+                // Update new related resource
+                $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+              }
+              if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
+                // Store related resource with this function
+                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+              }
 
-                        // Update just one related resource
-                        if (!isset($relatedResource['id'])) {
-                            // Create new related resource
-                            $relatedResourceModel = new $relatedResourceModelClass();
-                        } else {
-                            // Update new related resource
-                            $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
-                        }
-                        if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
-                            // Store related resource with this function
-                            $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-                        }
+              // BelongsTo the foreign key is on the "parent" model
+              $model->{$field . "_id"} = $relatedResourceModel->id;
+              $model->save();
+              break;
 
-                        // BelongsTo the foreign key is on the "parent" model
-                        $model->{$field . "_id"} = $relatedResourceModel->id;
-                        $model->save();
-                        break;
+            case 'HasMany':
+              $relatedResources = $resource[$field];
+              $oldRelatedResourceIds = $model->{$field}->pluck("id")->toArray();
+              $currentRelatedResourcesIds = [];
 
-                    case 'HasMany':
-                        $relatedResources = $resource[$field];
-                        $oldRelatedResourceIds = $model->{$field}->pluck("id")->toArray();
-                        $currentRelatedResourcesIds = [];
-
-                        foreach ($relatedResources as $relatedResource) {
-                            // Update just one related resource
-                            if (!isset($relatedResource['id'])) {
-                                // Create new related resource
-                                $relatedResourceModel = new $relatedResourceModelClass();
-                            } else {
-                                // Update new related resource
-                                $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
-                            }
-
-                            // Get the foreign key name of the related model in its own table
-                            // es. Card->hasMany(CardExercise) => getForeignKeyName = "card_id"
-                            $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
-
-                            // Store related resource with this function
-                            if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
-                                // Store related resource with this function
-                                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-                                $currentRelatedResourcesIds[] = $relatedResourceModel->id;
-                            }
-                        }
-
-                        // Delete owned no more used related resource
-                        $resourcesToDeleteIds = array_diff($oldRelatedResourceIds, $currentRelatedResourcesIds);
-
-                        foreach ($resourcesToDeleteIds as $resourceId) {
-                            Log::info("Deleting $resourceId");
-                            $relatedResourceModelClass::destroy($resourceId);
-                        }
-
-                        break;
-
-                    case 'HasOne':
-                        $relatedResource = $resource[$field];
-                        // Update just one related resource
-                        if (!isset($relatedResource['id'])) {
-                            // Create new related resource
-                            $relatedResourceModel = new $relatedResourceModelClass();
-                        } else {
-                            // Update new related resource
-                            $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
-                        }
-
-                        // Get the foreign key name of the related model
-                        $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
-
-                        // Store related resource with this function
-                        if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
-                            // Store related resource with this function
-                            $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
-                            $currentRelatedResourcesIds[] = $relatedResourceModel->id;
-                        }
-                        break;
-
-                    case 'BelongsToMany':
-                        $relatedResources = $resource[$field];
-
-                        $relatedResourcesIds = array_column($relatedResources, "id");
-
-                        $model->{$field}()->sync($relatedResourcesIds);
-                        break;
-                    }
+              foreach ($relatedResources as $relatedResource) {
+                // Update just one related resource
+                if (!isset($relatedResource['id'])) {
+                  // Create new related resource
+                  $relatedResourceModel = new $relatedResourceModelClass();
+                } else {
+                  // Update new related resource
+                  $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
                 }
+
+                // Get the foreign key name of the related model in its own table
+                // es. Card->hasMany(CardExercise) => getForeignKeyName = "card_id"
+                $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
+
+                // Store related resource with this function
+                if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
+                  // Store related resource with this function
+                  $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                  $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+                }
+              }
+
+              // Delete owned no more used related resource
+              $resourcesToDeleteIds = array_diff($oldRelatedResourceIds, $currentRelatedResourcesIds);
+
+              foreach ($resourcesToDeleteIds as $resourceId) {
+                Log::info("Deleting $resourceId");
+                $relatedResourceModelClass::destroy($resourceId);
+              }
+
+              break;
+
+            case 'HasOne':
+              $relatedResource = $resource[$field];
+              // Update just one related resource
+              if (!isset($relatedResource['id'])) {
+                // Create new related resource
+                $relatedResourceModel = new $relatedResourceModelClass();
+              } else {
+                // Update new related resource
+                $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+              }
+
+              // Get the foreign key name of the related model
+              $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
+
+              // Store related resource with this function
+              if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
+                // Store related resource with this function
+                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+              }
+              break;
+
+            case 'BelongsToMany':
+              $relatedResources = $resource[$field];
+
+              $relatedResourcesIds = array_column($relatedResources, "id");
+
+              $model->{$field}()->sync($relatedResourcesIds);
+              break;
             }
-
-
-            DB::commit();
-            return $model;
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::info($e);
-            throw $e;
+          }
         }
+
+
+        DB::commit();
+        return $model;
+      } catch (\Exception $e) {
+        DB::rollBack();
+        Log::info($e);
+        throw $e;
+      }
     }
 
     private function getSqlQueryWithBindings($query) {
-        return Str::replaceArray("?", $query->getBindings(), $query->toSql());
+      return Str::replaceArray("?", $query->getBindings(), $query->toSql());
     }
 
     private function saveImage($model, $value, $field) {
-        $imageTokens = explode(",", $value);
-        $imageInfo = $imageTokens[0];
-        $imageContent = $imageTokens[1];
-        $imageExtension = "";
+      $imageTokens = explode(",", $value);
+      $imageInfo = $imageTokens[0];
+      $imageContent = $imageTokens[1];
+      $imageExtension = "";
 
-        $matches = [];
+      $matches = [];
 
-        // Try to find the extension from image info
-        preg_match('/^data:image\/(\w+);base64/', $imageInfo, $matches);  
+      // Try to find the extension from image info
+      preg_match('/^data:image\/(\w+);base64/', $imageInfo, $matches);  
 
-        if (count($matches) > 1) {
-            $imageExtension = $matches[1];
-        }
+      if (count($matches) > 1) {
+        $imageExtension = $matches[1];
+      }
 
-        $imageName = $field . "_" . $model->id . "_" . Carbon::now()->timestamp . "." . $imageExtension;
+      $imageName = $field . "_" . $model->id . "_" . Carbon::now()->timestamp . "." . $imageExtension;
 
-        $storageDisk = config("concorde.storageDisk", "local");
+      $storageDisk = config("concorde.storageDisk", "local");
 
-        $imageSaved = Storage::disk($storageDisk)->put($imageName, base64_decode($imageContent), "public");
+      $imageSaved = Storage::disk($storageDisk)->put($imageName, base64_decode($imageContent), "public");
 
-        if ($imageSaved) {
-            // Delete old image to reduce space usage
-            $oldImageFileTokens = explode("/", $model->{$field});
-            $oldImageFileName = end($oldImageFileTokens);
-            $oldImageDeleted = Storage::disk($storageDisk)->delete($oldImageFileName);
+      if ($imageSaved) {
+        // Delete old image to reduce space usage
+        $oldImageFileTokens = explode("/", $model->{$field});
+        $oldImageFileName = end($oldImageFileTokens);
+        $oldImageDeleted = Storage::disk($storageDisk)->delete($oldImageFileName);
 
-            $imageUrl = Storage::disk($storageDisk)->url($imageName);
+        $imageUrl = Storage::disk($storageDisk)->url($imageName);
 
-            $model->{$field} = $imageUrl;
-            $model->save();
-        }
+        $model->{$field} = $imageUrl;
+        $model->save();
+      }
     }
 }
