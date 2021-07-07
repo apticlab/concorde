@@ -214,8 +214,6 @@ class ResourceBaseController extends Controller
           $savedModel = $this->postStore($resourceData, $savedModel);
         }
 
-        Log::info($savedModel);
-
         DB::commit();
         return response()->json($savedModel, 201);
       } catch (\Exception $e) {
