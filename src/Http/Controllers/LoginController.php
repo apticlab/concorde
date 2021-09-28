@@ -54,7 +54,6 @@ class LoginController extends Controller {
 
     $loginRequest = Request::create("/oauth/token", "POST", $passportData);
     $response = app()->handle($loginRequest);
-    $responseStatusCode = $response->getStatusCode();
 
     switch ($response->getStatusCode()) {
       case 500:
@@ -62,6 +61,7 @@ class LoginController extends Controller {
         break;
 
       case 401:
+      case 400:
         return response("wrong-credentials", 401);
         break;
 
