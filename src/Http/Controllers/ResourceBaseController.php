@@ -465,6 +465,12 @@ class ResourceBaseController extends Controller
               continue;
             }
 
+            if (isset($model->readonly) && in_array($field, $model->readonly)) {
+                // If this field represents a resource we don't want to update
+                // automatically, simply skip this passage
+                continue;
+            }
+
             switch ($relationType) {
             case 'BelongsTo':
               $relatedResource = $resource[$field];
