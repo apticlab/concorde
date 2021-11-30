@@ -189,6 +189,10 @@ class ResourceBaseController extends Controller
         return $resourceData;
     }
 
+    public function preDestroy($resourceId) {
+        return true;
+    }
+
     public function store(Request $request) {
       DB::beginTransaction();
       try {
@@ -284,9 +288,18 @@ class ResourceBaseController extends Controller
 
     public function destroy($id) {
       try {
-        $this->resourceClass::destroy($id);
+        $canDestroy = true;
+
+        if (method_exists($this, "preDestroy")) {
+          $canDestroy = $this->preDestroy($id);
+        }
+
+        if ($canDestroy) {
+            $this->resourceClass::destroy($id);
+        }
 
         return response()->json("ok", 200);
+
       } catch (\Exception $e) {
         DB::rollBack();
 
