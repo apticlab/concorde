@@ -314,7 +314,21 @@ class ResourceBaseController extends Controller
     public function act(Request $req, $resourceId, $actionName) {
       if (method_exists($this, "doAct")) {
         $actionData = json_decode($req->getContent(), true);
-        $resource = $this->resourceClass::where("id", $resourceId)->first();
+
+        $query = $this->resourceClass::query();
+
+        // Role base filter
+        if (method_exists($this, "roleBaseFilter")) {
+            $authUser = Auth::user();
+
+            $query = $this->roleBaseFilter($query, $authUser);
+        }
+
+        $resource = $query->where("id", $resourceId)->first();
+
+        if (!$resource) {
+            return response()->json("resource_not_found", 404);
+        }
 
         try {
           DB::beginTransaction();
