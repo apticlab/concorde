@@ -345,7 +345,7 @@ class ResourceBaseController extends Controller
 
       try {
         DB::beginTransaction();
-        $result = $this->doAct($resource, $actionName, $actionData);
+        $result = $this->doAct($resource, $actionName, $actionData, $req);
 
         if (!$result) {
           throw new Exception("action_not_found");
