@@ -208,11 +208,13 @@ class ResourceBaseController extends Controller
                 }
             }
 
+            $newIDLookup = [];
+
             if (method_exists($this, "preStore")) {
                 $resourceData = $this->preStore($resourceData, $resourceModel);
             }
 
-            $savedModel = $this->resourceStore($resourceData, $resourceModel);
+            $savedModel = $this->resourceStore($resourceData, $resourceModel, $newIDLookup);
 
             if (method_exists($this, "postStore")) {
                 $savedModel = $this->postStore($resourceData, $savedModel);
@@ -250,11 +252,13 @@ class ResourceBaseController extends Controller
                 }
             }
 
+            $newIDLookup = [];
+
             if (method_exists($this, "preUpdate")) {
                 $resourceData = $this->preUpdate($resourceData, $resourceModel);
             }
 
-            $savedModel = $this->resourceStore($resourceData, $resourceModel);
+            $savedModel = $this->resourceStore($resourceData, $resourceModel, $newIDLookup);
 
             if (method_exists($this, "postUpdate")) {
                 $resourceData = $this->postUpdate($resourceData, $resourceModel);
@@ -457,10 +461,9 @@ class ResourceBaseController extends Controller
         return false;
     }
 
-    private function resourceStore($resource, $model) {
+    private function resourceStore($resource, $model, $newIDLookup = []) {
         DB::beginTransaction();
 
-        Log::info($resource);
         $resourceData = [];
         foreach (Schema::getColumnListing($model->getTable()) as $columnName) {
             if (isset($this->images) && array_key_exists($columnName, $this->images)) {
@@ -474,11 +477,7 @@ class ResourceBaseController extends Controller
 
         try {
             $model->fill($resourceData);
-            Log::info($resourceData);
-            Log::info($model);
             $model->save();
-
-            Log::info("Qui?");
 
             if ($resource != null) {
                 foreach ($resource as $field => $value) {
@@ -499,7 +498,6 @@ class ResourceBaseController extends Controller
                         continue;
                     }
 
-                    Log::info("Going down with " . $field . " resource relation of type: " . $relationType);
 
                     if (isset($model->readonly) && in_array($field, $model->readonly)) {
                         // If this field represents a resource we don't want to update
@@ -512,19 +510,33 @@ class ResourceBaseController extends Controller
                         $relatedResource = $resource[$field];
 
                         // Update just one related resource
-                        if (!isset($relatedResource['id']) or str_starts_with($relatedResource['id'], "NEW_")) {
+                        if (
+                            !isset($relatedResource['id']) or
+                            (str_starts_with($relatedResource['id'], "NEW_") and !isset($newIDLookup[$relatedResource['id']]))
+                        ) {
                             // Create new related resource
                             $relatedResourceModel = new $relatedResourceModelClass();
+
+                            if (isset($relatedResource['id'])) {
+                                //Save to get the ID
+                                $relatedResourceModel->save();
+                                $newIDLookup[$relatedResource['id']] = $relatedResourceModel->id;
+                            }
 
                             // Remove id from resource, since it can be in the form NEW_###
                             unset($relatedResource['id']);
                         } else {
+                            if (isset($newIDLookup[$relatedResource['id']])) {
+                                Log::info("Old NEW_ resource ID: " . $relatedResource['id'] . " actual one: " . $newIDLookup[$relatedResource['id']]);
+                                $relatedResource['id'] = $newIDLookup[$relatedResource['id']];
+                            }
+
                             // Update new related resource
                             $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
                         }
                         if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
                             // Store related resource with this function
-                            $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                            $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel, $newIDLookup);
                         }
 
                         // BelongsTo the foreign key is on the "parent" model
@@ -541,15 +553,29 @@ class ResourceBaseController extends Controller
 
                         foreach ($relatedResources as $relatedResource) {
                             // Update just one related resource
-                            if (!isset($relatedResource['id']) or str_starts_with($relatedResource['id'], "NEW_")) {
+                            if (
+                                !isset($relatedResource['id']) or
+                                (str_starts_with($relatedResource['id'], "NEW_") and !isset($newIDLookup[$relatedResource['id']]))
+                            ) {
                                 Log::info("Creating a new related resource!");
                                 // Create new related resource
                                 $relatedResourceModel = new $relatedResourceModelClass();
 
+                                if (isset($relatedResource['id'])) {
+                                    //Save to get the ID
+                                    $relatedResourceModel->save();
+                                    $newIDLookup[$relatedResource['id']] = $relatedResourceModel->id;
+                                }
+
                                 // Remove id from resource, since it can be in the form NEW_###
                                 unset($relatedResource['id']);
                             } else {
+                            if (isset($newIDLookup[$relatedResource['id']])) {
+                                Log::info("Old NEW_ resource ID: " . $relatedResource['id'] . " actual one: " . $newIDLookup[$relatedResource['id']]);
+                                $relatedResource['id'] = $newIDLookup[$relatedResource['id']];
+                            }
                                 // Update new related resource
+                                Log::info("Update related resource");
                                 $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
                             }
 
@@ -557,11 +583,14 @@ class ResourceBaseController extends Controller
                             // es. Card->hasMany(CardExercise) => getForeignKeyName = "card_id"
                             $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
 
+                            $relatedResourceModel->{$model->{$field}()->getForeignKeyName()} = $model->id;
+                            $relatedResourceModel->save();
+
                             // Store related resource with this function
                             if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
                                 Log::info("Storing related resource in HasMany, model: " . get_class($relatedResourceModel));
                                 // Store related resource with this function
-                                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                                $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel, $newIDLookup);
                                 $currentRelatedResourcesIds[] = $relatedResourceModel->id;
                             }
                         }
@@ -574,6 +603,16 @@ class ResourceBaseController extends Controller
                             $relatedResourceModelClass::destroy($resourceId);
                         }
 
+                        break;
+
+                    case 'HasManyThrough':
+                        /*
+                        Log::info("Going down with " . $field . " resource relation of type: " . $relationType);
+                        Log::info($resource[$field]);
+                        Log::info($resourceData);
+                        Log::info($field);
+                        Log::info($relatedResourceModelClass);
+                         */
                         break;
 
                     case 'HasOne':
@@ -593,7 +632,7 @@ class ResourceBaseController extends Controller
                         // Store related resource with this function
                         if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
                             // Store related resource with this function
-                            $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel);
+                            $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel, $newIDLookup);
                             $currentRelatedResourcesIds[] = $relatedResourceModel->id;
                         }
                         break;
