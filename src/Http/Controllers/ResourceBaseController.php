@@ -489,7 +489,6 @@ class ResourceBaseController extends Controller
                         }
                     }
 
-
                     // Check which type of relationship we have
                     try {
                         $relationType = array_reverse(explode("\\", get_class($model->{$field}())))[0];
@@ -498,6 +497,7 @@ class ResourceBaseController extends Controller
                         continue;
                     }
 
+                    //Log::info("RelationType: " . $relationType . " : RelatedResourceModelClass: " . $relatedResourceModelClass . " field : " . $field);
 
                     if (isset($model->readonly) && in_array($field, $model->readonly)) {
                         // If this field represents a resource we don't want to update
@@ -512,7 +512,7 @@ class ResourceBaseController extends Controller
                         // Update just one related resource
                         if (
                             !isset($relatedResource['id']) or
-                            (str_starts_with($relatedResource['id'], "NEW_") and !isset($newIDLookup[$relatedResource['id']]))
+                            (str_starts_with($relatedResource['id'], "NEW_") and !isset($newIDLookup[$relatedResource['id']]['id']))
                         ) {
                             // Create new related resource
                             $relatedResourceModel = new $relatedResourceModelClass();
@@ -520,19 +520,24 @@ class ResourceBaseController extends Controller
                             if (isset($relatedResource['id'])) {
                                 //Save to get the ID
                                 $relatedResourceModel->save();
-                                $newIDLookup[$relatedResource['id']] = $relatedResourceModel->id;
+                                $newIDLookup[$relatedResource['id']] = [
+                                    "id" => $relatedResourceModel->id,
+                                    "model" => $relatedResourceModel
+                                ];
                             }
 
                             // Remove id from resource, since it can be in the form NEW_###
                             unset($relatedResource['id']);
                         } else {
                             if (isset($newIDLookup[$relatedResource['id']])) {
-                                Log::info("Old NEW_ resource ID: " . $relatedResource['id'] . " actual one: " . $newIDLookup[$relatedResource['id']]);
-                                $relatedResource['id'] = $newIDLookup[$relatedResource['id']];
+                                Log::info("Old NEW_ resource ID: " . $relatedResource['id'] . " actual one: " . $newIDLookup[$relatedResource['id']]['id']);
+                                $relatedResourceModel = $newIDLookup[$relatedResource['id']]['model'];
+                                $relatedResource['id'] = $newIDLookup[$relatedResource['id']]['id'];
+                            } else {
+                                // Update new related resource
+                                $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
                             }
 
-                            // Update new related resource
-                            $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
                         }
                         if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
                             // Store related resource with this function
@@ -540,7 +545,8 @@ class ResourceBaseController extends Controller
                         }
 
                         // BelongsTo the foreign key is on the "parent" model
-                        $model->{$field . "_id"} = $relatedResourceModel->id;
+                        $fkName = $model->{$field}()->getForeignKeyName();
+                        $model->{$fkName} = $relatedResourceModel->id;
                         $model->save();
                         break;
 
@@ -555,7 +561,7 @@ class ResourceBaseController extends Controller
                             // Update just one related resource
                             if (
                                 !isset($relatedResource['id']) or
-                                (str_starts_with($relatedResource['id'], "NEW_") and !isset($newIDLookup[$relatedResource['id']]))
+                                (str_starts_with($relatedResource['id'], "NEW_") and !isset($newIDLookup[$relatedResource['id']]['id']))
                             ) {
                                 Log::info("Creating a new related resource!");
                                 // Create new related resource
@@ -564,19 +570,24 @@ class ResourceBaseController extends Controller
                                 if (isset($relatedResource['id'])) {
                                     //Save to get the ID
                                     $relatedResourceModel->save();
-                                    $newIDLookup[$relatedResource['id']] = $relatedResourceModel->id;
+                                    $newIDLookup[$relatedResource['id']] = [
+                                        "id" => $relatedResourceModel->id,
+                                        "model" => $relatedResourceModel,
+                                    ];
                                 }
 
                                 // Remove id from resource, since it can be in the form NEW_###
                                 unset($relatedResource['id']);
                             } else {
-                            if (isset($newIDLookup[$relatedResource['id']])) {
-                                Log::info("Old NEW_ resource ID: " . $relatedResource['id'] . " actual one: " . $newIDLookup[$relatedResource['id']]);
-                                $relatedResource['id'] = $newIDLookup[$relatedResource['id']];
-                            }
-                                // Update new related resource
-                                Log::info("Update related resource");
-                                $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+                                Log::info("Related resource altready exists");
+
+                                if (isset($newIDLookup[$relatedResource['id']]['id'])) {
+                                    $relatedResourceModel = $newIDLookup[$relatedResource['id']]['model'];
+                                    $relatedResource['id'] = $newIDLookup[$relatedResource['id']]['id'];
+                                } else {
+                                    // Update new related resource
+                                    $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
+                                }
                             }
 
                             // Get the foreign key name of the related model in its own table
