@@ -497,14 +497,6 @@ class ResourceBaseController extends Controller
                         continue;
                     }
 
-                    //Log::info("RelationType: " . $relationType . " : RelatedResourceModelClass: " . $relatedResourceModelClass . " field : " . $field);
-
-                    if (isset($model->readonly) && in_array($field, $model->readonly)) {
-                        // If this field represents a resource we don't want to update
-                        // automatically, simply skip this passage
-                        continue;
-                    }
-
                     switch ($relationType) {
                     case 'BelongsTo':
                         $relatedResource = $resource[$field];
@@ -541,6 +533,7 @@ class ResourceBaseController extends Controller
                         }
                         if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
                             // Store related resource with this function
+                            Log::info("Not updating model " . $field . " on resource " . $model . " but only the relation");
                             $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel, $newIDLookup);
                         }
 
@@ -586,6 +579,7 @@ class ResourceBaseController extends Controller
                                     $relatedResource['id'] = $newIDLookup[$relatedResource['id']]['id'];
                                 } else {
                                     // Update new related resource
+                                    Log::info("Update related resource: " . $relatedResource['id']);
                                     $relatedResourceModel = $relatedResourceModelClass::where("id", $relatedResource['id'])->first();
                                 }
                             }
