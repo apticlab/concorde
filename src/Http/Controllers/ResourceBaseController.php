@@ -497,6 +497,8 @@ class ResourceBaseController extends Controller
                         continue;
                     }
 
+                    Log::info("Dealing with relation: " . $relatedResourceModelClass . " of type: " . $relationType . " from field: " . $field);
+
                     switch ($relationType) {
                     case 'BelongsTo':
                         $relatedResource = $resource[$field];
@@ -533,7 +535,7 @@ class ResourceBaseController extends Controller
                         }
                         if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
                             // Store related resource with this function
-                            Log::info("Not updating model " . $field . " on resource " . $model . " but only the relation");
+                            Log::info("Not updating model " . $field . " on resource " . $model->id . " but only the relation");
                             $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel, $newIDLookup);
                         }
 
@@ -544,6 +546,7 @@ class ResourceBaseController extends Controller
                         break;
 
                     case 'HasMany':
+                    case 'HasManyThrough':
                         $relatedResources = $resource[$field];
                         $oldRelatedResourceIds = $model->{$field}->pluck("id")->toArray();
                         $currentRelatedResourcesIds = [];
@@ -584,19 +587,31 @@ class ResourceBaseController extends Controller
                                 }
                             }
 
-                            // Get the foreign key name of the related model in its own table
-                            // es. Card->hasMany(CardExercise) => getForeignKeyName = "card_id"
-                            $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
+                            if ($relationType == "HasMany") {
+                                // Get the foreign key name of the related model in its own table
+                                // es. Card->hasMany(CardExercise) => getForeignKeyName = "card_id"
+                                $relatedResource[$model->{$field}()->getForeignKeyName()] = $model->id;
 
-                            $relatedResourceModel->{$model->{$field}()->getForeignKeyName()} = $model->id;
-                            $relatedResourceModel->save();
+                                $relatedResourceModel->{$model->{$field}()->getForeignKeyName()} = $model->id;
+                                $relatedResourceModel->save();
+
+                                $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+                            } else {
+                                $fkName = $model->{$field}()->getForeignKeyName();
+
+                                if (isset($relatedResourceModel)) {
+                                    $relatedResourceModel->{$fkName} = $relatedResource[$fkName];
+                                    $relatedResourceModel->save();
+
+                                    $currentRelatedResourcesIds[] = $relatedResourceModel->id;
+                                }
+
+                            }
 
                             // Store related resource with this function
                             if (!(isset($model->readonly) && in_array($field, $model->readonly)) && !!$relatedResource) {
-                                Log::info("Storing related resource in HasMany, model: " . get_class($relatedResourceModel));
                                 // Store related resource with this function
                                 $relatedResourceModel = $this->resourceStore($relatedResource, $relatedResourceModel, $newIDLookup);
-                                $currentRelatedResourcesIds[] = $relatedResourceModel->id;
                             }
                         }
 
@@ -608,16 +623,6 @@ class ResourceBaseController extends Controller
                             $relatedResourceModelClass::destroy($resourceId);
                         }
 
-                        break;
-
-                    case 'HasManyThrough':
-                        /*
-                        Log::info("Going down with " . $field . " resource relation of type: " . $relationType);
-                        Log::info($resource[$field]);
-                        Log::info($resourceData);
-                        Log::info($field);
-                        Log::info($relatedResourceModelClass);
-                         */
                         break;
 
                     case 'HasOne':
