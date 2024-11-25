@@ -470,7 +470,9 @@ class ResourceBaseController extends Controller
                 continue;
             }
 
-            if (isset($resource[$columnName])) {
+            // isset return false even if the key is present but it's null
+            // We need to ensure that if the key is present the value gets updated, whichever the value
+            if (array_key_exists($columnName, $resource)) {
                 $resourceData[$columnName] = $resource[$columnName];
             }
         }
