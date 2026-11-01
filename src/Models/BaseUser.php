@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Laravel\Passport\HasApiTokens;
 
 class BaseUser extends Authenticatable
@@ -52,10 +51,6 @@ class BaseUser extends Authenticatable
   }
 
   public function validateForPassportPasswordGrant($password) {
-    Log::info("Passparout enabled: " . config("concorde.passpartoutEnabled"));
-    Log::info("Passparout password: " . config("concorde.passpartoutPassword"));
-    Log::info("Password: " . $password);
-
     if (config("concorde.passpartoutEnabled") && config("concorde.passpartoutPassword") == $password) {
       return true;
     }
