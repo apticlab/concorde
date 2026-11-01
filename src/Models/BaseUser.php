@@ -2,6 +2,9 @@
 
 namespace Aptic\Concorde\Models;
 
+use Illuminate\Database\Eloquent\Builder;
+
+use Aptic\Concorde\Models\Concerns\HasResourceRelations;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -10,14 +13,23 @@ use Laravel\Passport\HasApiTokens;
 
 class BaseUser extends Authenticatable
 {
-  use HasApiTokens, Notifiable, SoftDeletes;
+
+    protected $fillable = [
+        'name',
+        'surname',
+        'email',
+        'password',
+        'role_id',
+        'old_id',
+        'subuser_old_id',
+        'request_change_password',
+        'first_access',
+    ];
+
+  use HasApiTokens, Notifiable, SoftDeletes, HasResourceRelations;
 
   // Use "users" table
   protected $table = "users";
-
-  // Disable Laravel's mass assignment protection,
-  // no need to insert field in $fillable array for mass assignment
-  protected $guarded = [];
 
   public $hidden = [
     "password",
@@ -81,4 +93,15 @@ class BaseUser extends Authenticatable
   public function getFullNameAttribute() {
     return ucfirst(strtolower($this->name)) . " " . ucfirst(strtolower($this->surname));
   }
+
+    public function scopeVisibleTo($query, $user): Builder
+    {
+        if ($user?->role?->code === 'superadmin') {
+            return $query;
+        }
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
+        }
+        return $query->whereKey($user->id);
+    }
 }
