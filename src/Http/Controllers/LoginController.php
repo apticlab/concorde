@@ -50,8 +50,6 @@ class LoginController extends Controller {
     ];
 
     $loginField = "email";
-    $headers = apache_request_headers();
-
     $loginRequest = Request::create("/oauth/token", "POST", $passportData);
     $response = app()->handle($loginRequest);
 
