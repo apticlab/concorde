@@ -43,7 +43,7 @@ class ResourceImages
         $model->saveOrFail();
     }
 
-    private function decode(string $field, string $payload): string
+    protected function decode(string $field, string $payload): string
     {
         $limit = config('concorde.maxImageBytes', 10 * 1024 * 1024);
         if (strlen($payload) > (int) ceil($limit * 4 / 3) + 100
