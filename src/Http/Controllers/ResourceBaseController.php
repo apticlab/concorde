@@ -89,7 +89,7 @@ class ResourceBaseController extends Controller
         try {
             $model = new $this->resourceClass();
             Gate::authorize('create', $model);
-            $images = new ResourceImages();
+            $images = app(ResourceImages::class);
             $saved = $model->getConnection()->transaction(function () use ($data, $model, $images) {
                 return $this->persist($data, $model, 'create', $images);
             });
@@ -104,7 +104,7 @@ class ResourceBaseController extends Controller
         try {
             $model = $this->resourceQuery()->whereKey($id)->firstOrFail();
             Gate::authorize('update', $model);
-            $images = new ResourceImages();
+            $images = app(ResourceImages::class);
             $saved = $model->getConnection()->transaction(function () use ($data, $model, $images) {
                 return $this->persist($data, $model, 'edit', $images);
             });
@@ -170,7 +170,7 @@ class ResourceBaseController extends Controller
         }
         try {
             $model = new $this->resourceClass();
-            $images = new ResourceImages();
+            $images = app(ResourceImages::class);
             $saved = $model->getConnection()->transaction(function () use ($file, $images) {
                 return (new ResourceCsvImporter())->import($file, (new $this->resourceClass())->resourceImportColumns(), function ($data) use ($images) {
                     $data = Validator::make($data, $this->importRules())->validate();
